@@ -1,6 +1,12 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
+// 초기 단일 법인 데이터
+export const initialCompany = {
+  id: 'C1',
+  name: '엔터프라이즈 (주)'
+};
+
 export const initialRates = {
   nationalPension: 4.5,
   healthInsurance: 3.545,
@@ -12,10 +18,12 @@ export const initialRates = {
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
+  const [company, setCompany] = useState(initialCompany);
   const [employees, setEmployees] = useState([]);
   const [dailyWorkers, setDailyWorkers] = useState([]);
   const [dailyWorkLogs, setDailyWorkLogs] = useState([]);
   const [insuranceRates, setInsuranceRates] = useState(initialRates);
+  const [payrollArchives, setPayrollArchives] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // 1. 초기 데이터 로드 및 마이그레이션 로직
@@ -54,6 +62,11 @@ export function AppProvider({ children }) {
           setEmployees(mappedEmps);
           setDailyWorkers(dbDailyWorkers || []);
           setDailyWorkLogs(dbLogs || []);
+          
+          // 급여 마감 기록 로컬스토리지에서 로드 (추후 Supabase 연동 가능)
+          const savedArchives = localStorage.getItem('payrollArchives');
+          if (savedArchives) setPayrollArchives(JSON.parse(savedArchives));
+          
           if (dbSettings) setInsuranceRates(dbSettings.value);
         }
       } catch (error) {
@@ -183,12 +196,23 @@ export function AppProvider({ children }) {
     if (!error) setInsuranceRates(newRates);
   };
 
+  const saveArchive = (year, month, snapshotData) => {
+    setPayrollArchives(prev => {
+      const filtered = prev.filter(p => !(p.year === year && p.month === month));
+      const newArchives = [...filtered, { year, month, data: snapshotData, finalizedAt: new Date().toISOString() }];
+      localStorage.setItem('payrollArchives', JSON.stringify(newArchives));
+      return newArchives;
+    });
+  };
+
   return (
     <AppContext.Provider value={{
+      company,
       employees,
       dailyWorkers,
       dailyWorkLogs,
       insuranceRates,
+      payrollArchives,
       loading,
       setInsuranceRates: updateRates,
       addEmployee,
@@ -199,7 +223,8 @@ export function AppProvider({ children }) {
       removeDailyWorker,
       addWorkLog,
       removeWorkLog,
-      updateWorkLog
+      updateWorkLog,
+      saveArchive
     }}>
       {children}
     </AppContext.Provider>
