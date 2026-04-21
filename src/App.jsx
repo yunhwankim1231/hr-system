@@ -7,7 +7,8 @@ import PayrollManagement from './pages/PayrollManagement';
 import CertificateIssue from './pages/CertificateIssue';
 import DailyWorkerManagement from './pages/DailyWorkerManagement.jsx';
 import IncomeReporting from './pages/IncomeReporting';
-import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch } from 'lucide-react';
+import SeveranceManagement from './pages/SeveranceManagement';
+import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote } from 'lucide-react';
 import { AppProvider } from './context/AppContext';
 
 function AppLayout({ children }) {
@@ -21,6 +22,7 @@ function AppLayout({ children }) {
     { path: '/income-reporting', label: '급여 소득 원장', icon: FileSearch },
     { path: '/certificates', label: '증명서 발급', icon: Stamp },
     { path: '/leave', label: '연차 관리', icon: CalendarDays },
+    { path: '/severance', label: '퇴직금 관리', icon: Banknote },
   ];
 
   return (
@@ -72,6 +74,7 @@ function App() {
             <Route path="/income-reporting" element={<IncomeReporting />} />
             <Route path="/certificates" element={<CertificateIssue />} />
             <Route path="/leave" element={<LeaveManagement />} />
+            <Route path="/severance" element={<SeveranceManagement />} />
           </Routes>
         </AppLayout>
       </Router>
