@@ -95,6 +95,8 @@ export function AppProvider({ children }) {
         is_dual_employed: e.is_dual_employed,
         probation_end_date: e.probation_end_date,
         continue_national_pension: e.continue_national_pension,
+        bank_name: e.bank_name,
+        account_number: e.account_number,
         addons: JSON.stringify(e.extra_pays || [])
       })));
     }
@@ -103,35 +105,55 @@ export function AppProvider({ children }) {
       await supabase.from('daily_workers').upsert(localDailyWorkers.map(w => ({
         id: String(w.id),
         name: w.name,
-        phone: w.phone, daily_rate: w.dailyRate, bank: w.bank, account: w.account
+        phone: w.phone, daily_rate: w.daily_rate, bank: w.bank, account: w.account
       })));
     }
 
     if (localLogs.length > 0) {
       await supabase.from('daily_work_logs').upsert(localLogs.map(l => ({
-        id: String(l.id), worker_id: String(l.workerId), work_date: l.date, hours: l.hours, wage: l.wage
+        id: String(l.id), worker_id: String(l.worker_id), work_date: l.work_date, hours: l.hours, wage: l.wage
       })));
     }
   };
 
-  // 2. 직원 관리 CRUD (매핑 로직 보강)
+  // 2. 직원 관리 CRUD (DB 컬럼에 맞게 엄격하게 필터링)
   const addEmployee = async (empData) => {
     const { extra_pays, ...rest } = empData;
-    const newEmp = {
-      id: `E${Date.now()}`,
+    const newEmpId = `E${Date.now()}`;
+    
+    // DB 컬럼에 정의된 필드만 추출
+    const payload = {
+      id: newEmpId,
+      name: rest.name,
+      join_date: rest.join_date,
       status: '재직',
-      dependents: 1,
-      base_salary: 0,
-      ...rest,
+      workplace: rest.workplace,
+      role: rest.role,
+      position: rest.position,
+      dependents: rest.dependents || 1,
+      base_salary: rest.base_salary || 0,
+      phone: rest.phone,
+      birth_date: rest.birth_date,
+      address: rest.address,
+      employment_type: rest.employment_type,
+      is_dual_employed: rest.is_dual_employed || false,
+      probation_end_date: rest.probation_end_date,
+      continue_national_pension: rest.continue_national_pension || false,
+      bank_name: rest.bank_name,
+      account_number: rest.account_number,
       addons: JSON.stringify(extra_pays || [])
     };
     
-    const { error } = await supabase.from('employees').insert([newEmp]);
+    const { error } = await supabase.from('employees').insert([payload]);
     if (error) {
-      console.error('직원 추가 실패:', error);
+      console.error('DB 저장 실패:', error.message);
+      alert('저장 실패: ' + error.message);
       return;
     }
-    setEmployees([...employees, { ...newEmp, extra_pays: extra_pays || [] }]);
+    
+    // 로컬 상태 업데이트 (화면 반영)
+    setEmployees([...employees, { ...payload, extra_pays: extra_pays || [] }]);
+    console.log('직원 등록 성공:', payload.name);
   };
 
   const updateEmployee = async (id, updatedData) => {
@@ -142,6 +164,8 @@ export function AppProvider({ children }) {
     const { error } = await supabase.from('employees').update(payload).eq('id', id);
     if (!error) {
       setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...updatedData } : emp));
+    } else {
+      console.error('DB 수정 실패:', error.message);
     }
   };
 
