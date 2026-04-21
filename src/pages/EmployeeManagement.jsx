@@ -395,7 +395,16 @@ export default function EmployeeManagement() {
                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{emp.birth_date} 생</span>
                 </td>
                 <td style={tdStyle}>
-                  {emp.phone || '-'}<br/>
+                  {(() => {
+                    if (!emp.phone) return '-';
+                    const cleaned = emp.phone.replace(/[^0-9]/g, '');
+                    if (cleaned.length === 11) {
+                      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
+                    } else if (cleaned.length === 10) {
+                      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+                    }
+                    return emp.phone;
+                  })()}<br/>
                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)', maxWidth: '150px', display: 'inline-block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {emp.address}
                   </span>
