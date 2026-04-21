@@ -33,8 +33,8 @@ export default function PayrollManagement() {
       return {
         emp,
         earnings: [
-          { id: 'base', name: '기본급 (계산됨)', amount: p.basePay, isFixed: true },
-          ...p.extraPays.map((ep, i) => ({ id: `ep_${i}`, name: ep.name, amount: ep.amount }))
+          { id: 'base', name: '기본급 (계산됨)', amount: p.basePay, isFixed: true, isTaxFree: false },
+          ...p.extraPays.map((ep, i) => ({ id: `ep_${i}`, name: ep.name, amount: ep.amount, isTaxFree: !!ep.isTaxFree }))
         ],
         deductions: [
           { id: 'np', name: '국민연금', amount: p.nationalPension },
