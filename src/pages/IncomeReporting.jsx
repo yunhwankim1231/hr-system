@@ -6,11 +6,21 @@ export default function IncomeReporting() {
   const { employees, payrollArchives, company } = useAppContext();
   const [selectedEmpId, setSelectedEmpId] = useState(null);
   const [targetYear, setTargetYear] = useState(new Date().getFullYear());
+  const [searchQuery, setSearchQuery] = useState('');
 
   // 선택된 연도의 마감 기록만 필터링
   const yearlyArchives = useMemo(() => {
     return payrollArchives.filter(p => p.year === targetYear).sort((a, b) => a.month - b.month);
   }, [payrollArchives, targetYear]);
+
+  // 검색어에 따른 직원 필터링
+  const filteredEmployees = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return employees.filter(emp => 
+      emp.name.toLowerCase().includes(q) || 
+      (emp.phone && emp.phone.includes(q))
+    );
+  }, [employees, searchQuery]);
 
   // 선택된 직원의 누적 데이터 계산
   const reportData = useMemo(() => {
@@ -52,8 +62,7 @@ export default function IncomeReporting() {
     };
   }, [selectedEmpId, yearlyArchives, employees]);
 
-  const years = [...new Set(payrollArchives.map(p => p.year))].sort((a, b) => b - a);
-  if (years.length === 0) years.push(new Date().getFullYear());
+  const years = [...new Set([...payrollArchives.map(p => p.year), 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2035, 2040, 2050])].sort((a, b) => b - a);
 
   const handlePrint = () => window.print();
 
@@ -80,11 +89,35 @@ export default function IncomeReporting() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 300px) 1fr', gap: '24px', marginBottom: '40px' }}>
           {/* 직원 선택 리스트 */}
-          <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div className="glass-card" style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', fontSize: '14px', fontWeight: 'bold' }}>대상 직원 선택</div>
-            <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-              {employees.length === 0 && <div style={{ padding: '20px', color: 'var(--text-secondary)', fontSize: '13px' }}>등록된 직원이 없습니다.</div>}
-              {employees.map(emp => (
+            
+            {/* 검색창 추가 */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ position: 'relative' }}>
+                <FileSearch size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                <input 
+                  type="text" 
+                  placeholder="이름 검색..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px 8px 32px',
+                    borderRadius: '6px',
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'white',
+                    fontSize: '13px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ maxHeight: '600px', overflowY: 'auto', flex: 1 }}>
+              {filteredEmployees.length === 0 && <div style={{ padding: '20px', color: 'var(--text-secondary)', fontSize: '13px' }}>검색 결과가 없습니다.</div>}
+              {filteredEmployees.map(emp => (
                 <div 
                   key={emp.id} 
                   onClick={() => setSelectedEmpId(emp.id)}

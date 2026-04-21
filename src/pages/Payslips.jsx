@@ -180,7 +180,7 @@ export default function Payslips() {
           <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
             <Calendar size={16} style={{ marginRight: '8px', color: 'var(--text-secondary)' }} />
             <select value={targetYear} onChange={e => setTargetYear(Number(e.target.value))} style={selectStyle}>
-              {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y} style={{ background: '#0f172a' }}>{y}년</option>)}
+              {Array.from({length: 31}, (_, i) => 2020 + i).map(y => <option key={y} value={y} style={{ background: '#0f172a' }}>{y}년</option>)}
             </select>
             <select value={targetMonth} onChange={e => setTargetMonth(Number(e.target.value))} style={selectStyle}>
               {Array.from({length: 12}, (_, i) => i + 1).map(m => <option key={m} value={m} style={{ background: '#0f172a' }}>{m}월</option>)}

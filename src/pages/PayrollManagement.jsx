@@ -238,7 +238,7 @@ export default function PayrollManagement() {
               <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <Calendar size={16} style={{ marginRight: '8px', color: 'var(--text-secondary)' }} />
                 <select value={targetYear} onChange={e => setTargetYear(Number(e.target.value))} style={selectStyle}>
-                  {Array.from({length: 11}, (_, i) => 2020 + i).map(y => (
+                  {Array.from({length: 31}, (_, i) => 2020 + i).map(y => (
                     <option key={y} value={y} style={{ background: '#0f172a', color: 'white' }}>{y}년</option>
                   ))}
                 </select>
