@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { calculatePayroll } from '../utils/payrollCalculations';
+import { calculatePayroll, recalculateDeductions } from '../utils/payrollCalculations';
 import { Printer, CheckCircle, Calendar, Plus, X, Copy } from 'lucide-react';
 
 export default function PayrollManagement() {
@@ -43,7 +43,7 @@ export default function PayrollManagement() {
           { id: 'ei', name: '고용보험', amount: p.employmentInsurance },
           { id: 'it', name: '소득세', amount: p.incomeTax },
           { id: 'rt', name: '지방소득세', amount: p.residentTax }
-        ].filter(d => d.amount > 0), // 0원인 항목은 숨김
+        ], // 0원인 항목도 편집을 위해 유지
         calculationMethod: p.calculationMethod
       };
     });
@@ -172,34 +172,109 @@ export default function PayrollManagement() {
   const prevYear = targetMonth === 1 ? targetYear - 1 : targetYear;
   const hasPrevArchive = payrollArchives.some(p => p.year === prevYear && p.month === prevMonth);
 
-  // Draft 수정 액션들
+  const standardDeductionIds = ['np', 'hi', 'ltc', 'ei', 'it', 'rt'];
+  const standardDeductionNames = { 
+    np: '국민연금', hi: '건강보험', ltc: '장기요양보험', 
+    ei: '고용보험', it: '소득세', rt: '지방소득세' 
+  };
+
   const updateDraft = (empId, type, id, field, value) => {
     setPayrollDraft(prev => prev.map(draft => {
       if (draft.emp.id !== empId) return draft;
-      return {
+      
+      const newDraft = {
         ...draft,
         [type]: draft[type].map(item => item.id === id ? { ...item, [field]: value } : item)
       };
+
+      if (type === 'earnings') {
+        const taxableTotal = newDraft.earnings
+          .filter(e => !e.isTaxFree)
+          .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        
+        const autoDeductions = recalculateDeductions({ 
+          taxableTotal, 
+          employee: draft.emp, 
+          rates: insuranceRates, 
+          paymentMonth: currentMonthStr 
+        });
+
+        const updatedDeductions = [...newDraft.deductions];
+        standardDeductionIds.forEach(sid => {
+          const idx = updatedDeductions.findIndex(d => d.id === sid);
+          if (idx !== -1) {
+            updatedDeductions[idx] = { ...updatedDeductions[idx], amount: autoDeductions[sid] };
+          } else if (autoDeductions[sid] > 0) {
+            updatedDeductions.push({ 
+              id: sid, 
+              name: standardDeductionNames[sid], 
+              amount: autoDeductions[sid] 
+            });
+          }
+        });
+        newDraft.deductions = updatedDeductions;
+      }
+      return newDraft;
     }));
   };
 
   const removeDraftItem = (empId, type, id) => {
     setPayrollDraft(prev => prev.map(draft => {
       if (draft.emp.id !== empId) return draft;
-      return {
+      
+      const newDraft = {
         ...draft,
         [type]: draft[type].filter(item => item.id !== id)
       };
+
+      if (type === 'earnings') {
+        const taxableTotal = newDraft.earnings.filter(e => !e.isTaxFree).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        const autoDeductions = recalculateDeductions({ 
+          taxableTotal, employee: draft.emp, rates: insuranceRates, paymentMonth: currentMonthStr
+        });
+
+        const updatedDeductions = [...newDraft.deductions];
+        standardDeductionIds.forEach(sid => {
+          const idx = updatedDeductions.findIndex(d => d.id === sid);
+          if (idx !== -1) {
+            updatedDeductions[idx] = { ...updatedDeductions[idx], amount: autoDeductions[sid] };
+          } else if (autoDeductions[sid] > 0) {
+            updatedDeductions.push({ id: sid, name: standardDeductionNames[sid], amount: autoDeductions[sid] });
+          }
+        });
+        newDraft.deductions = updatedDeductions;
+      }
+      return newDraft;
     }));
   };
 
   const addDraftItem = (empId, type) => {
     setPayrollDraft(prev => prev.map(draft => {
       if (draft.emp.id !== empId) return draft;
-      return {
+      
+      const newDraft = {
         ...draft,
-        [type]: [...draft[type], { id: Date.now().toString(), name: '', amount: 0 }]
+        [type]: [...draft[type], { id: Date.now().toString(), name: '', amount: 0, isTaxFree: false }]
       };
+
+      if (type === 'earnings') {
+        const taxableTotal = newDraft.earnings.filter(e => !e.isTaxFree).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        const autoDeductions = recalculateDeductions({ 
+          taxableTotal, employee: draft.emp, rates: insuranceRates, paymentMonth: currentMonthStr
+        });
+
+        const updatedDeductions = [...newDraft.deductions];
+        standardDeductionIds.forEach(sid => {
+          const idx = updatedDeductions.findIndex(d => d.id === sid);
+          if (idx !== -1) {
+            updatedDeductions[idx] = { ...updatedDeductions[idx], amount: autoDeductions[sid] };
+          } else if (autoDeductions[sid] > 0) {
+            updatedDeductions.push({ id: sid, name: standardDeductionNames[sid], amount: autoDeductions[sid] });
+          }
+        });
+        newDraft.deductions = updatedDeductions;
+      }
+      return newDraft;
     }));
   };
 

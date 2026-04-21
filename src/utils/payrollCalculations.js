@@ -8,22 +8,21 @@ import { getAge } from './getAge';
  * 인적공제: 부양가족 1인당 월 150,000원씩 과세표준에서 차감
  * (연간 1인당 150만원 기본공제 / 12개월 = 월 12.5만원이나, 간이세액표 근사치로 15만원 적용)
  */
-function estimateIncomeTax(taxableIncome, dependents = 1) {
+export function estimateIncomeTax(taxableIncome, dependents = 1) {
   // 부양가족 인적공제 적용 (본인은 이미 기본 포함이므로 추가분만 차감)
   const additionalDependents = Math.max(dependents - 1, 0);
   const deduction = additionalDependents * 150000;
   const adjustedIncome = Math.max(taxableIncome - deduction, 0);
 
+  // 2024년 간이세액표 근사치 로직 (과세표준 구간별 세율)
   if (adjustedIncome <= 1060000) return 0;
   if (adjustedIncome <= 1500000) return Math.floor(adjustedIncome * 0.005 / 10) * 10;
-  if (adjustedIncome <= 2500000) return Math.floor(adjustedIncome * 0.01 / 10) * 10;
-  if (adjustedIncome <= 3000000) return Math.floor(adjustedIncome * 0.02 / 10) * 10;
-  if (adjustedIncome <= 4000000) return Math.floor(adjustedIncome * 0.03 / 10) * 10;
-  if (adjustedIncome <= 5000000) return Math.floor(adjustedIncome * 0.04 / 10) * 10;
-  if (adjustedIncome <= 6000000) return Math.floor(adjustedIncome * 0.05 / 10) * 10;
-  if (adjustedIncome <= 8000000) return Math.floor(adjustedIncome * 0.07 / 10) * 10;
-  if (adjustedIncome <= 10000000) return Math.floor(adjustedIncome * 0.10 / 10) * 10;
-  return Math.floor(adjustedIncome * 0.15 / 10) * 10;
+  if (adjustedIncome <= 2500000) return Math.floor(adjustedIncome * 0.012 / 10) * 10;
+  if (adjustedIncome <= 3500000) return Math.floor(adjustedIncome * 0.025 / 10) * 10;
+  if (adjustedIncome <= 5000000) return Math.floor(adjustedIncome * 0.045 / 10) * 10;
+  if (adjustedIncome <= 7000000) return Math.floor(adjustedIncome * 0.075 / 10) * 10;
+  if (adjustedIncome <= 10000000) return Math.floor(adjustedIncome * 0.12 / 10) * 10;
+  return Math.floor(adjustedIncome * 0.18 / 10) * 10;
 }
 
 /**
@@ -102,16 +101,17 @@ export function calculatePayroll({ employee, company, rates, paymentMonth }) {
   // 총 지급액 (과세 + 비과세)
   const totalGrossPay = taxableTotal + nonTaxableExtraSum;
 
-
-  // 4대 보험 계산 (동적 요율 적용)
-  // 1. 국민연금 - 만 60세 이상 제외
+  // 1. 국민연금 (근로자분 4.5%, 상한액 265,500원)
   let nationalPension = 0;
   if (age < 60 || employee.continue_national_pension) {
+    // rates.nationalPension이 4.5라고 가정
     nationalPension = Math.floor(taxableTotal * (rates.nationalPension / 100) / 10) * 10;
+    if (nationalPension > 265500) nationalPension = 265500;
   }
 
-  // 2. 건강보험
+  // 2. 건강보험 (근로자분 3.545%)
   let healthInsurance = Math.floor(taxableTotal * (rates.healthInsurance / 100) / 10) * 10;
+  if (healthInsurance > 3911280) healthInsurance = 3911280;
 
   // 3. 장기요양보험
   let longTermCare = Math.floor(healthInsurance * (rates.longTermCareRatio / 100) / 10) * 10;
@@ -150,5 +150,48 @@ export function calculatePayroll({ employee, company, rates, paymentMonth }) {
     netPay: Math.floor(netPay),
     calculationMethod,
     ageContext: { age }
+  };
+}
+
+/**
+ * 지급 내역이 변경되었을 때 4대보험 및 소득세를 재계산합니다.
+ */
+export function recalculateDeductions({ taxableTotal, employee, rates, paymentMonth }) {
+  const [year, month] = (paymentMonth || '').split('-').map(Number);
+  const targetDate = paymentMonth ? new Date(year, month, 0) : new Date();
+  const age = getAge(employee.birth_date, targetDate); 
+  
+  // 1. 국민연금 (근로자분 4.5%, 상한액 265,500원)
+  let nationalPension = 0;
+  if (age < 60 || employee.continue_national_pension) {
+    nationalPension = Math.floor(taxableTotal * (rates.nationalPension / 100) / 10) * 10;
+    if (nationalPension > 265500) nationalPension = 265500;
+  }
+
+  // 2. 건강보험 (근로자분 3.545%)
+  let healthInsurance = Math.floor(taxableTotal * (rates.healthInsurance / 100) / 10) * 10;
+  if (healthInsurance > 3911280) healthInsurance = 3911280;
+
+  // 3. 장기요양보험
+  const longTermCare = Math.floor(healthInsurance * (rates.longTermCareRatio / 100) / 10) * 10;
+
+  // 4. 고용보험
+  let employmentInsurance = 0;
+  if (age < 65) {
+    employmentInsurance = Math.floor(taxableTotal * (rates.employmentInsurance / 100) / 10) * 10;
+  }
+
+  // 5. 소득세
+  const dependents = Number(employee.dependents) || 1;
+  const incomeTax = estimateIncomeTax(taxableTotal, dependents);
+  const residentTax = Math.floor((incomeTax * 0.1) / 10) * 10;
+
+  return {
+    np: nationalPension,
+    hi: healthInsurance,
+    ltc: longTermCare,
+    ei: employmentInsurance,
+    it: incomeTax,
+    rt: residentTax
   };
 }
