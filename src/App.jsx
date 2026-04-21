@@ -6,7 +6,8 @@ import EmployeeManagement from './pages/EmployeeManagement';
 import PayrollManagement from './pages/PayrollManagement';
 import CertificateIssue from './pages/CertificateIssue';
 import DailyWorkerManagement from './pages/DailyWorkerManagement.jsx';
-import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction } from 'lucide-react';
+import IncomeReporting from './pages/IncomeReporting';
+import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch } from 'lucide-react';
 import { AppProvider } from './context/AppContext';
 
 function AppLayout({ children }) {
@@ -17,6 +18,7 @@ function AppLayout({ children }) {
     { path: '/payroll', label: '급여 관리', icon: Calculator },
     { path: '/daily-workers', label: '일용직 관리', icon: Construction },
     { path: '/payslips', label: '급여 명세서', icon: FileText },
+    { path: '/income-reporting', label: '급여 소득 원장', icon: FileSearch },
     { path: '/certificates', label: '증명서 발급', icon: Stamp },
     { path: '/leave', label: '연차 관리', icon: CalendarDays },
   ];
@@ -67,6 +69,7 @@ function App() {
             <Route path="/payroll" element={<PayrollManagement />} />
             <Route path="/daily-workers" element={<DailyWorkerManagement />} />
             <Route path="/payslips" element={<Payslips />} />
+            <Route path="/income-reporting" element={<IncomeReporting />} />
             <Route path="/certificates" element={<CertificateIssue />} />
             <Route path="/leave" element={<LeaveManagement />} />
           </Routes>
