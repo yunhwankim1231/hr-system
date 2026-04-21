@@ -44,10 +44,25 @@ export default function EmployeeManagement() {
 
   const handleInputChange = (e) => {
     let { name, value } = e.target;
+    
+    // 급여 금액 콤마 서식
     if (name === 'base_salary') {
       const numericVal = value.replace(/[^0-9]/g, '');
       value = numericVal ? Number(numericVal).toLocaleString() : '';
     }
+    
+    // 연락처 하이픈 자동 서식
+    if (name === 'phone') {
+      const numericVal = value.replace(/[^0-9]/g, '');
+      if (numericVal.length <= 3) {
+        value = numericVal;
+      } else if (numericVal.length <= 7) {
+        value = `${numericVal.slice(0, 3)}-${numericVal.slice(3)}`;
+      } else {
+        value = `${numericVal.slice(0, 3)}-${numericVal.slice(3, 7)}-${numericVal.slice(7, 11)}`;
+      }
+    }
+    
     setFormData({ ...formData, [name]: value });
   };
 
