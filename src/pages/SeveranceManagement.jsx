@@ -366,37 +366,30 @@ export default function SeveranceManagement() {
       {/* 인쇄 레이아웃 (기존보다 강화됨) */}
       {selectedEmp && calculation && !calculation.error && (
         <div className="print-only" style={{ color: '#000', padding: '40px', background: '#fff', minHeight: '100vh' }}>
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h1 style={{ fontSize: '32px', fontWeight: 'bold', textDecoration: 'underline', marginBottom: '10px' }}>퇴직금 정산 상세 내역서</h1>
-            <p style={{ fontSize: '14px' }}>Retirement Pay Settlement Statement</p>
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
+          <div style={{ marginBottom: '25px' }}>
             <div style={printBoxStyle}>
               <h4 style={printLabelStyle}>1. 근로자 인적사항</h4>
               <table style={{ width: '100%', fontSize: '14px' }}>
                 <tbody>
-                  <tr><td style={{ width: '80px', padding: '4px' }}>성 명 :</td><td>{selectedEmp.name}</td></tr>
-                  <tr><td style={{ padding: '4px' }}>입사일 :</td><td>{selectedEmp.join_date}</td></tr>
-                  <tr><td style={{ padding: '4px' }}>퇴사일 :</td><td>{resignationDate}</td></tr>
-                  <tr><td style={{ padding: '4px' }}>재직일수 :</td><td>{calculation.totalDays} 일 (약 {calculation.serviceYears}년)</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div style={printBoxStyle}>
-              <h4 style={printLabelStyle}>2. 사업장 정보</h4>
-              <table style={{ width: '100%', fontSize: '14px' }}>
-                <tbody>
-                  <tr><td style={{ width: '80px', padding: '4px' }}>법인명 :</td><td>{company.name}</td></tr>
-                  <tr><td style={{ padding: '4px' }}>대표자 :</td><td>(인)</td></tr>
-                  <tr><td style={{ padding: '4px' }}>정산일 :</td><td>{new Date().toLocaleDateString()}</td></tr>
+                  <tr>
+                    <td style={{ width: '80px', padding: '4px' }}>성 명 :</td><td>{selectedEmp.name}</td>
+                    <td style={{ width: '80px', padding: '4px' }}>입사일 :</td><td>{selectedEmp.join_date}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '4px' }}>퇴사일 :</td><td>{resignationDate}</td>
+                    <td style={{ padding: '4px' }}>재직일수 :</td><td>{calculation.totalDays} 일 (약 {calculation.serviceYears}년)</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <div style={{ marginBottom: '30px' }}>
-            <h4 style={printLabelStyle}>3. 평균임금 산정 상세 (최근 3개월)</h4>
+          <div style={{ marginBottom: '25px' }}>
+            <h4 style={printLabelStyle}>2. 평균임금 산정 상세 (최근 3개월)</h4>
             <table style={printTableStyle}>
               <thead>
                 <tr style={{ background: '#f8f9fa' }}>
@@ -432,14 +425,14 @@ export default function SeveranceManagement() {
               </div>
             </div>
             
-            <div style={{ marginTop: '15px', padding: '15px', border: '2px solid #000', textAlign: 'center', background: '#f8f9fa' }}>
+            <div style={{ marginTop: '10px', padding: '12px', border: '2px solid #000', textAlign: 'center', background: '#f8f9fa' }}>
               <span style={{ fontSize: '14px' }}>1일 평균임금 = (A + B + C) / {calculation.threeMonthDayTotal}일 = </span>
               <strong style={{ fontSize: '18px' }}>{Math.floor(calculation.dailyAverageWage).toLocaleString()} 원</strong>
             </div>
           </div>
 
-          <div style={{ marginBottom: '40px' }}>
-            <h4 style={printLabelStyle}>4. 퇴직금 및 세금 정산 결과</h4>
+          <div style={{ marginBottom: '30px' }}>
+            <h4 style={printLabelStyle}>3. 퇴직금 및 세금 정산 결과</h4>
             <table style={printTableStyle}>
               <tbody>
                 <tr>
@@ -462,7 +455,7 @@ export default function SeveranceManagement() {
             </table>
           </div>
 
-          <div style={{ marginTop: '100px', display: 'flex', justifyContent: 'space-around' }}>
+          <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-around' }}>
             <div style={{ textAlign: 'center' }}>
               <p style={{ marginBottom: '40px' }}>위 정산 금액을 정히 영수함</p>
               <p>202__년 __월 __일</p>
