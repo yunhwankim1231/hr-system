@@ -8,6 +8,7 @@ export default function IncomeReporting() {
   const [targetYear, setTargetYear] = useState(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState('');
   const [showDetail, setShowDetail] = useState(false);
+  const [viewGroup, setViewGroup] = useState('all'); // all | earnings | deductions
 
   // 선택된 연도의 마감 기록만 필터링
   const yearlyArchives = useMemo(() => {
@@ -56,16 +57,21 @@ export default function IncomeReporting() {
       return acc;
     }, { taxable: 0, taxFree: 0, gross: 0 });
 
-    // 전체 마감 데이터에서 존재하는 모든 수당 항목 이름 추출 (상세 보기 컬럼용)
+    // 전체 마감 데이터에서 존재하는 모든 수당/공제 항목 이름 추출
     const allEarningsNames = [...new Set(yearlyArchives.flatMap(archive => 
       archive.data.find(d => d.emp.id === selectedEmpId)?.earnings.map(e => e.name) || []
+    ))].filter(Boolean);
+
+    const allDeductionNames = [...new Set(yearlyArchives.flatMap(archive => 
+      archive.data.find(d => d.emp.id === selectedEmpId)?.deductions.map(e => e.name) || []
     ))].filter(Boolean);
 
     return {
       employee: emp,
       monthlySummaries,
       totals,
-      allEarningsNames
+      allEarningsNames,
+      allDeductionNames
     };
   }, [selectedEmpId, yearlyArchives, employees]);
 
@@ -176,88 +182,175 @@ export default function IncomeReporting() {
               </div>
             ) : (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                  <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', borderLeft: '4px solid #10b981' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>누적 과세 급여액</div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{reportData.totals.taxable.toLocaleString()}원</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                    <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', borderLeft: '4px solid #10b981' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>누적 과세 급여액</div>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{reportData.totals.taxable.toLocaleString()}원</div>
+                    </div>
+                    <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', borderLeft: '4px solid #ef4444' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>누적 공제 총액</div>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{yearlyArchives.reduce((acc, curr) => {
+                        const empD = curr.data.find(d => d.emp.id === selectedEmpId);
+                        return acc + (empD?.totalDeductions || 0);
+                      }, 0).toLocaleString()}원</div>
+                    </div>
+                    <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>누적 실지급액 합계</div>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#60a5fa' }}>{yearlyArchives.reduce((acc, curr) => {
+                        const empD = curr.data.find(d => d.emp.id === selectedEmpId);
+                        return acc + (empD?.netPay || 0);
+                      }, 0).toLocaleString()}원</div>
+                    </div>
                   </div>
-                  <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', borderLeft: '4px solid #f59e0b' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>누적 비과세 수당 총액</div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{reportData.totals.taxFree.toLocaleString()}원</div>
-                  </div>
-                  <div style={{ padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>총 보수 합계 (비과세 포함)</div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#60a5fa' }}>{reportData.totals.gross.toLocaleString()}원</div>
-                  </div>
-                </div>
 
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: showDetail ? '1000px' : 'auto' }}>
-                    <thead>
-                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <th style={thStyle}>지급월</th>
-                        {showDetail ? (
-                          reportData.allEarningsNames.map(name => (
-                            <th key={name} style={thStyle}>{name}</th>
-                          ))
-                        ) : (
-                          <>
-                            <th style={thStyle}>과세 급여</th>
-                            <th style={thStyle}>비과세 수당</th>
-                          </>
-                        )}
-                        <th style={thStyle}>총 지급액</th>
-                        <th style={thStyle}>마감 일시</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reportData.monthlySummaries.map(s => {
-                        const archive = yearlyArchives.find(a => a.month === s.month);
-                        const empData = archive?.data.find(d => d.emp.id === selectedEmpId);
-                        
-                        return (
-                          <tr key={s.month} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                            <td style={tdStyle}>{targetYear}년 {s.month}월</td>
-                            {showDetail ? (
-                              reportData.allEarningsNames.map(name => {
-                                const val = empData?.earnings.find(e => e.name === name)?.amount || 0;
-                                return <td key={name} style={tdStyle}>{val > 0 ? val.toLocaleString() + '원' : '-'}</td>;
-                              })
-                            ) : (
-                              <>
-                                <td style={tdStyle}>{s.taxableTotal.toLocaleString()}원</td>
-                                <td style={tdStyle}>{s.taxFreeTotal.toLocaleString()}원</td>
-                              </>
-                            )}
-                            <td style={tdStyle}><strong>{s.grossTotal.toLocaleString()}원</strong></td>
-                            <td style={{ ...tdStyle, color: 'var(--text-secondary)', fontSize: '12px' }}>{new Date(s.finalizedAt).toLocaleDateString()}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ background: 'rgba(59, 130, 246, 0.1)', fontWeight: 'bold' }}>
-                        <td style={tdStyle}>합 계</td>
-                        {showDetail ? (
-                          reportData.allEarningsNames.map(name => {
-                            const sum = reportData.monthlySummaries.reduce((acc, s) => {
-                              const arch = yearlyArchives.find(a => a.month === s.month);
-                              const eData = arch?.data.find(d => d.emp.id === selectedEmpId);
-                              return acc + (eData?.earnings.find(e => e.name === name)?.amount || 0);
-                            }, 0);
-                            return <td key={name} style={tdStyle}>{sum.toLocaleString()}원</td>;
-                          })
-                        ) : (
-                          <>
-                            <td style={tdStyle}>{reportData.totals.taxable.toLocaleString()}원</td>
-                            <td style={tdStyle}>{reportData.totals.taxFree.toLocaleString()}원</td>
-                          </>
-                        )}
-                        <td style={tdStyle} colSpan="2">{reportData.totals.gross.toLocaleString()}원</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                  {/* 보기 그룹 탭 */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                    {[
+                      { id: 'all', label: '전체 보기', color: 'var(--primary-color)' },
+                      { id: 'earnings', label: '지급 항목만', color: '#10b981' },
+                      { id: 'deductions', label: '공제 항목만', color: '#ef4444' }
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setViewGroup(tab.id)}
+                        style={{
+                          padding: '6px 12px', borderRadius: '6px', border: '1px solid ' + (viewGroup === tab.id ? tab.color : 'rgba(255,255,255,0.1)'),
+                          background: viewGroup === tab.id ? tab.color : 'transparent',
+                          color: viewGroup === tab.id ? 'white' : 'var(--text-secondary)',
+                          fontSize: '12px', cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left', minWidth: showDetail ? '1200px' : 'auto' }}>
+                      <thead>
+                        <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                          <th style={{ ...thStyle, position: 'sticky', left: 0, zIndex: 20, background: '#1e293b' }}>지급월</th>
+                          
+                          {/* 지급 항목 섹션 */}
+                          {(viewGroup === 'all' || viewGroup === 'earnings') && (
+                            <>
+                              {showDetail ? (
+                                reportData.allEarningsNames.map(name => (
+                                  <th key={name} style={{ ...thStyle, borderTop: '2px solid #10b981' }}>{name}</th>
+                                ))
+                              ) : (
+                                <th style={{ ...thStyle, borderTop: '2px solid #10b981' }}>과세 급여</th>
+                              )}
+                              <th style={{ ...thStyle, borderTop: '2px solid #10b981', background: 'rgba(16, 185, 129, 0.05)' }}>지급계</th>
+                            </>
+                          )}
+
+                          {/* 공제 항목 섹션 */}
+                          {(viewGroup === 'all' || viewGroup === 'deductions') && (
+                            <>
+                              {showDetail ? (
+                                reportData.allDeductionNames.map(name => (
+                                  <th key={name} style={{ ...thStyle, borderTop: '2px solid #ef4444' }}>{name}</th>
+                                ))
+                              ) : (
+                                <th style={{ ...thStyle, borderTop: '2px solid #ef4444' }}>4대보험/소득세</th>
+                              )}
+                              <th style={{ ...thStyle, borderTop: '2px solid #ef4444', background: 'rgba(239, 68, 68, 0.05)' }}>공제계</th>
+                            </>
+                          )}
+
+                          <th style={thStyle}>실지급액</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.monthlySummaries.map(s => {
+                          const archive = yearlyArchives.find(a => a.month === s.month);
+                          const empData = archive?.data.find(d => d.emp.id === selectedEmpId);
+                          
+                          return (
+                            <tr key={s.month} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                              <td style={{ ...tdStyle, position: 'sticky', left: 0, zIndex: 10, background: '#1e293b', fontWeight: 'bold' }}>{targetYear}년 {s.month}월</td>
+                              
+                              {/* 지급 데이터 */}
+                              {(viewGroup === 'all' || viewGroup === 'earnings') && (
+                                <>
+                                  {showDetail ? (
+                                    reportData.allEarningsNames.map(name => {
+                                      const val = empData?.earnings.find(e => e.name === name)?.amount || 0;
+                                      return <td key={name} style={tdStyle}>{val > 0 ? val.toLocaleString() : '-'}</td>;
+                                    })
+                                  ) : (
+                                    <td style={tdStyle}>{s.taxableTotal.toLocaleString()}</td>
+                                  )}
+                                  <td style={{ ...tdStyle, background: 'rgba(16, 185, 129, 0.05)', fontWeight: 'bold', color: '#10b981' }}>{s.grossTotal.toLocaleString()}</td>
+                                </>
+                              )}
+
+                              {/* 공제 데이터 */}
+                              {(viewGroup === 'all' || viewGroup === 'deductions') && (
+                                <>
+                                  {showDetail ? (
+                                    reportData.allDeductionNames.map(name => {
+                                      const val = empData?.deductions.find(d => d.name === name)?.amount || 0;
+                                      return <td key={name} style={tdStyle}>{val > 0 ? val.toLocaleString() : '-'}</td>;
+                                    })
+                                  ) : (
+                                    <td style={tdStyle}>{empData?.totalDeductions.toLocaleString() || '0'}</td>
+                                  )}
+                                  <td style={{ ...tdStyle, background: 'rgba(239, 68, 68, 0.05)', fontWeight: 'bold', color: '#ef4444' }}>{empData?.totalDeductions.toLocaleString() || '0'}</td>
+                                </>
+                              )}
+
+                              <td style={{ ...tdStyle, color: '#60a5fa', fontWeight: 'bold' }}>{empData?.netPay.toLocaleString() || '0'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: 'rgba(59, 130, 246, 0.1)', fontWeight: 'bold' }}>
+                          <td style={{ ...tdStyle, position: 'sticky', left: 0, zIndex: 10, background: '#1e293b' }}>누계</td>
+                          
+                          {(viewGroup === 'all' || viewGroup === 'earnings') && (
+                            <>
+                              {showDetail ? (
+                                reportData.allEarningsNames.map(name => {
+                                  const sum = reportData.monthlySummaries.reduce((acc, s) => {
+                                    const arch = yearlyArchives.find(a => a.month === s.month);
+                                    const eData = arch?.data.find(d => d.emp.id === selectedEmpId);
+                                    return acc + (eData?.earnings.find(e => e.name === name)?.amount || 0);
+                                  }, 0);
+                                  return <td key={name} style={tdStyle}>{sum.toLocaleString()}</td>;
+                                })
+                              ) : (
+                                <td style={tdStyle}>{reportData.totals.taxable.toLocaleString()}</td>
+                              )}
+                              <td style={tdStyle}>{reportData.totals.gross.toLocaleString()}</td>
+                            </>
+                          )}
+
+                          {(viewGroup === 'all' || viewGroup === 'deductions') && (
+                            <>
+                              {showDetail ? (
+                                reportData.allDeductionNames.map(name => {
+                                  const sum = reportData.monthlySummaries.reduce((acc, s) => {
+                                    const arch = yearlyArchives.find(a => a.month === s.month);
+                                    const eData = arch?.data.find(d => d.emp.id === selectedEmpId);
+                                    return acc + (eData?.deductions.find(d => d.name === name)?.amount || 0);
+                                  }, 0);
+                                  return <td key={name} style={tdStyle}>{sum.toLocaleString()}</td>;
+                                })
+                              ) : (
+                                <td style={tdStyle}>{yearlyArchives.reduce((acc, curr) => acc + (curr.data.find(d => d.emp.id === selectedEmpId)?.totalDeductions || 0), 0).toLocaleString()}</td>
+                              )}
+                              <td style={tdStyle}>{yearlyArchives.reduce((acc, curr) => acc + (curr.data.find(d => d.emp.id === selectedEmpId)?.totalDeductions || 0), 0).toLocaleString()}</td>
+                            </>
+                          )}
+
+                          <td style={tdStyle}>{yearlyArchives.reduce((acc, curr) => acc + (curr.data.find(d => d.emp.id === selectedEmpId)?.netPay || 0), 0).toLocaleString()}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
               </div>
             )}
           </div>
@@ -283,69 +376,54 @@ export default function IncomeReporting() {
              </tr>
           </table>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
             <thead>
               <tr style={{ background: '#f3f4f6' }}>
                 <th style={{ ...printThStyle, width: '40px' }}>귀속월</th>
-                {showDetail ? (
-                  reportData.allEarningsNames.map(name => (
-                    <th key={name} style={printThStyle}>{name}</th>
-                  ))
-                ) : (
+                {(viewGroup === 'all' || viewGroup === 'earnings') && (
                   <>
-                    <th style={printThStyle}>과세 대상 급여액</th>
-                    <th style={printThStyle}>비과세 수당 합계</th>
+                    {showDetail ? reportData.allEarningsNames.map(n => <th key={n} style={printThStyle}>{n}</th>) : <th style={printThStyle}>지급액</th>}
                   </>
                 )}
-                <th style={{ ...printThStyle, width: '80px' }}>총 보수액</th>
-                <th style={{ ...printThStyle, width: '50px' }}>비 고</th>
+                {(viewGroup === 'all' || viewGroup === 'deductions') && (
+                  <>
+                    {showDetail ? reportData.allDeductionNames.map(n => <th key={n} style={printThStyle}>{n}</th>) : <th style={printThStyle}>공제액</th>}
+                  </>
+                )}
+                <th style={{ ...printThStyle, width: '80px' }}>실지급액</th>
               </tr>
             </thead>
             <tbody>
               {Array.from({length: 12}, (_, i) => i + 1).map(m => {
                 const s = reportData.monthlySummaries.find(x => x.month === m);
-                const archive = yearlyArchives.find(a => a.month === m);
-                const empData = archive?.data.find(d => d.emp.id === selectedEmpId);
+                const arch = yearlyArchives.find(a => a.month === m);
+                const empD = arch?.data.find(d => d.emp.id === selectedEmpId);
 
                 return (
                   <tr key={m}>
                     <td style={{ ...printTdStyle, textAlign: 'center' }}>{m}월</td>
-                    {showDetail ? (
-                      reportData.allEarningsNames.map(name => {
-                        const val = empData?.earnings.find(e => e.name === name)?.amount || 0;
-                        return <td key={name} style={printTdStyle}>{val > 0 ? val.toLocaleString() : '0'}</td>;
-                      })
-                    ) : (
+                    {(viewGroup === 'all' || viewGroup === 'earnings') && (
                       <>
-                        <td style={printTdStyle}>{s ? s.taxableTotal.toLocaleString() : '0'}</td>
-                        <td style={printTdStyle}>{s ? s.taxFreeTotal.toLocaleString() : '0'}</td>
+                        {showDetail ? (
+                          reportData.allEarningsNames.map(n => <td key={n} style={printTdStyle}>{empD?.earnings.find(e => e.name === n)?.amount.toLocaleString() || '0'}</td>)
+                        ) : (
+                          <td style={printTdStyle}>{s?.grossTotal.toLocaleString() || '0'}</td>
+                        )}
                       </>
                     )}
-                    <td style={printTdStyle}><strong>{s ? s.grossTotal.toLocaleString() : '0'}</strong></td>
-                    <td style={printTdStyle}></td>
+                    {(viewGroup === 'all' || viewGroup === 'deductions') && (
+                      <>
+                        {showDetail ? (
+                          reportData.allDeductionNames.map(n => <td key={n} style={printTdStyle}>{empD?.deductions.find(d => d.name === n)?.amount.toLocaleString() || '0'}</td>)
+                        ) : (
+                          <td style={printTdStyle}>{empD?.totalDeductions.toLocaleString() || '0'}</td>
+                        )}
+                      </>
+                    )}
+                    <td style={printTdStyle}><strong>{empD?.netPay.toLocaleString() || '0'}</strong></td>
                   </tr>
                 );
               })}
-              <tr style={{ background: '#f3f4f6', fontWeight: 'bold' }}>
-                <td style={{ ...printTdStyle, textAlign: 'center' }}>누적 합계</td>
-                {showDetail ? (
-                  reportData.allEarningsNames.map(name => {
-                    const sum = reportData.monthlySummaries.reduce((acc, s) => {
-                      const arch = yearlyArchives.find(a => a.month === s.month);
-                      const eData = arch?.data.find(d => d.emp.id === selectedEmpId);
-                      return acc + (eData?.earnings.find(e => e.name === name)?.amount || 0);
-                    }, 0);
-                    return <td key={name} style={printTdStyle}>{sum.toLocaleString()}</td>;
-                  })
-                ) : (
-                  <>
-                    <td style={printTdStyle}>{reportData.totals.taxable.toLocaleString()}</td>
-                    <td style={printTdStyle}>{reportData.totals.taxFree.toLocaleString()}</td>
-                  </>
-                )}
-                <td style={printTdStyle}>{reportData.totals.gross.toLocaleString()}</td>
-                <td style={printTdStyle}></td>
-              </tr>
             </tbody>
           </table>
           
