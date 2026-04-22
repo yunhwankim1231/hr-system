@@ -70,13 +70,23 @@ export default function PayrollManagement() {
   // 2. Draft 데이터를 기반으로 총액 계산
   const currentData = useMemo(() => {
     return payrollDraft.map(item => {
-      const taxableTotal = item.earnings.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const taxableTotal = item.earnings
+        .filter(e => !e.isTaxFree)
+        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      
+      const nonTaxableTotal = item.earnings
+        .filter(e => e.isTaxFree)
+        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
       const totalDeductions = item.deductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+      
       return {
         ...item,
         taxableTotal,
+        nonTaxableTotal,
+        totalGrossPay: taxableTotal + nonTaxableTotal,
         totalDeductions,
-        netPay: taxableTotal - totalDeductions
+        netPay: (taxableTotal + nonTaxableTotal) - totalDeductions
       };
     });
   }, [payrollDraft]);
@@ -463,8 +473,18 @@ export default function PayrollManagement() {
                             }}
                             className="inline-input-num"
                             placeholder="0"
+                            style={{ width: '70px' }}
                           />
-                          <span style={{ fontSize: '12px' }}>원</span>
+                          <span style={{ fontSize: '12px', marginRight: '4px' }}>원</span>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '10px', cursor: 'pointer', opacity: e.isFixed ? 0.3 : 1 }}>
+                            <input 
+                              type="checkbox" 
+                              checked={!!e.isTaxFree} 
+                              disabled={e.isFixed}
+                              onChange={(ev) => updateDraft(selectedData.emp.id, 'earnings', e.id, 'isTaxFree', ev.target.checked)}
+                            />
+                            비과
+                          </label>
                           {!e.isFixed && (
                              <button onClick={() => removeDraftItem(selectedData.emp.id, 'earnings', e.id)} className="delete-btn" title="항목 삭제">
                                <X size={14} />
