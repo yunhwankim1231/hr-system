@@ -318,10 +318,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
   @page {
     size: A4 portrait;
-    margin: 15mm;
+    margin: 0; /* 브라우저 기본 머리글/바닥글 숨김 */
   }
   body {
-    margin: 0;
+    margin: 15mm !important; /* 실제 인쇄 여백 */
   }
 
   .page-break {
