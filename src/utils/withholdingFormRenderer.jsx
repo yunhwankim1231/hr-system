@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import COMPANY_INFO from '../config/companyInfo';
 
-/* 주민번호 포맷 */
 export function fmtRID(birthDate, masked) {
   if (!birthDate) return '';
   const d = new Date(birthDate);
@@ -11,7 +10,6 @@ export function fmtRID(birthDate, masked) {
   return masked ? `${yy}${mm}${dd}-*******` : `${yy}${mm}${dd}-1234567`;
 }
 
-/* 비과세 코드표 */
 export const TF_CODES = {
   '식대': 'H01', '자가운전보조금': 'O01', '출산보육수당': 'G01',
   '연구활동비': 'M01', '야간근로수당': 'R10', '생산직야간수당': 'R11',
@@ -19,227 +17,191 @@ export const TF_CODES = {
 
 const fmt = v => (v || 0).toLocaleString();
 
-/* ═══ 스타일 상수 (법정 양식 모방) ═══ */
-const BD = '1px solid #000';
-const BDT = '2px solid #000';
-const base = { border: BD, padding: '2px 3px', fontSize: '8.5px', textAlign: 'center', verticalAlign: 'middle', lineHeight: '1.3' };
-const hd = { ...base, background: '#f2f2f2', fontWeight: '600' };
-const R = { ...base, textAlign: 'right', paddingRight: '4px' };
-const L = { ...base, textAlign: 'left', paddingLeft: '4px' };
-const secTitle = { ...base, background: '#e0e0e0', fontWeight: 'bold', fontSize: '9.5px', textAlign: 'left', paddingLeft: '6px' };
+/* 
+  * [위치 좌표 설정]
+  * PDF 이미지를 바탕으로 했을 때 데이터가 찍힐 % 좌표입니다.
+  * top: 위에서부터의 거리(%), left: 왼쪽에서부터의 거리(%), w: 너비(%)
+  * 값이 틀어질 경우 여기서 미세조정(0.1% 단위)하면 됩니다.
+*/
+const POS = {
+  // 상단
+  year: { top: 3.5, left: 91, w: 5 },
+  isResident: { top: 12.1, left: 15, w: 2 },
+  isDomestic: { top: 12.1, left: 36.5, w: 2 },
+  
+  // 원천징수의무자
+  companyName: { top: 15.1, left: 19, w: 18 },
+  bizNum: { top: 15.1, left: 51, w: 13 },
+  ceoName: { top: 17.6, left: 19, w: 18 },
+  corpNum: { top: 17.6, left: 51, w: 13 },
+  companyAddr: { top: 20.0, left: 19, w: 45 },
+  
+  // 소득자
+  empName: { top: 15.1, left: 79, w: 19 },
+  empRid: { top: 17.6, left: 79, w: 19 },
+  empAddr: { top: 20.0, left: 79, w: 19 },
 
-/**
- * 법정 양식 제1쪽 렌더링
- */
+  // Ⅰ. 근무처별 소득명세 (주근무지)
+  joinDate: { top: 26.5, left: 12, w: 8 },
+  resigDate: { top: 27.5, left: 12, w: 8 },
+  pSalary: { top: 27.5, left: 21, w: 8 },    // (13)급여
+  pBonus: { top: 27.5, left: 29.5, w: 8 },   // (14)상여
+  pTotal: { top: 27.5, left: 80.5, w: 8 },   // (20)계
+  pTaxFree: { top: 27.5, left: 89, w: 9 },   // (21)비과세
+
+  // Ⅱ. 비과세
+  tf1Code: { top: 35.5, left: 7, w: 5 },
+  tf1Amt: { top: 35.5, left: 12.5, w: 9 },
+  tf2Code: { top: 35.5, left: 21.5, w: 5 },
+  tf2Amt: { top: 35.5, left: 27, w: 9 },
+  tf3Code: { top: 35.5, left: 36.5, w: 5 },
+  tf3Amt: { top: 35.5, left: 42, w: 9 },
+  tfTotal: { top: 38.4, left: 51.5, w: 14 }, // (20) 비과세소득계
+
+  // Ⅲ. 보험료 (가운데 하단쯤 위치 예상 - 대략 60%)
+  np: { top: 62.2, left: 22, w: 10 },
+  hi: { top: 62.2, left: 42, w: 10 },
+  ltc: { top: 62.2, left: 62, w: 10 },
+  ei: { top: 65.0, left: 22, w: 10 },
+
+  // Ⅳ. 세액계산 (하단 예상 - 대략 75%)
+  detIt: { top: 76.5, left: 43, w: 12 },    // (72) 결정세액 소득세
+  detRt: { top: 76.5, left: 60, w: 12 },    // 지방소득세
+  detTot: { top: 76.5, left: 77, w: 20 },   // 합계
+  
+  paidIt: { top: 79.5, left: 43, w: 12 },   // (73) 기납부 소득세
+  paidRt: { top: 79.5, left: 60, w: 12 },   // 지방소득세
+  paidTot: { top: 79.5, left: 77, w: 20 },
+  
+  diffIt: { top: 86.8, left: 43, w: 12 },   // (76) 차감 소득세
+  diffRt: { top: 86.8, left: 60, w: 12 },   // 지방소득세
+  diffTot: { top: 86.8, left: 77, w: 20 },
+
+  // 하단 날짜 & 직인
+  signYear: { top: 92.5, left: 40, w: 5 },
+  signMonth: { top: 92.5, left: 49, w: 3 },
+  signDay: { top: 92.5, left: 55, w: 3 },
+  seal: { top: 93.0, left: 68, w: 15 },
+};
+
 export function renderPage1(emp, data, isMasked) {
+  const [debug, setDebug] = useState(false);
   const CI = COMPANY_INFO;
   const endDate = emp.resignation_date || `${data.year}-12-31`;
   const tfEntries = Object.entries(data.tfMap || {});
 
+  // 값 절대 배치용 헬퍼 컴포넌트
+  const Val = ({ posKey, val, align = 'center', fontSize = '11px', weight = 'normal' }) => {
+    const p = POS[posKey];
+    if (!p) return null;
+    return (
+      <div style={{
+        position: 'absolute',
+        top: `${p.top}%`,
+        left: `${p.left}%`,
+        width: `${p.w}%`,
+        textAlign: align,
+        fontSize: fontSize,
+        fontWeight: weight,
+        color: '#000',
+        transform: 'translateY(-50%)',
+        border: debug ? '1px solid red' : 'none',
+        background: debug ? 'rgba(255,0,0,0.1)' : 'transparent',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+      }}>
+        {val}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ width: '190mm', margin: '0 auto', fontFamily: "'Malgun Gothic', sans-serif", color: '#000', background: '#fff', padding: '8mm 10mm', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', position: 'relative' }}>
       
-      {/* ── 양식 번호 + 제목 ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-        <span style={{ fontSize: '8px', color: '#555' }}>[별지 제24호서식(1)] &lt;개정 2021.3.16.&gt;</span>
-        <span style={{ fontSize: '8px', color: '#555' }}>( {data.year}년 귀속 )</span>
+      {/* 화면상에서만 보이는 디버그 버튼 (인쇄 시 숨김) */}
+      <div className="no-print" style={{ textAlign: 'right', marginBottom: '10px' }}>
+        <button onClick={() => setDebug(!debug)} style={{ padding: '4px 8px', fontSize: '12px', background: debug ? '#ef4444' : '#475569', color: '#fff', borderRadius: '4px', border: 'none', cursor: 'pointer' }}>
+          {debug ? '테두리 숨기기' : '위치 조정용 테두리 보기'}
+        </button>
       </div>
 
-      <div style={{ textAlign: 'center', borderTop: BDT, borderBottom: BDT, padding: '5px 0', marginBottom: '6px' }}>
-        <span style={{ fontSize: '16px', fontWeight: 'bold', letterSpacing: '12px' }}>근로소득 원천징수영수증</span>
-        <span style={{ fontSize: '9px', marginLeft: '10px' }}>(근로소득지급조서)</span>
-      </div>
+      {/* A4 비율의 컨테이너 */}
+      <div style={{ 
+        position: 'relative', 
+        width: '100%', 
+        aspectRatio: '210 / 297', // A4 세로 비율
+        backgroundImage: "url('/receipt_bg.png')",
+        backgroundSize: '100% 100%',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center top',
+        boxShadow: '0 0 10px rgba(0,0,0,0.1)'
+      }}>
+        
+        {/* 상단 */}
+        <Val posKey="year" val={data.year} />
+        <Val posKey="isResident" val="V" weight="bold" />
+        <Val posKey="isDomestic" val="V" weight="bold" />
 
-      {/* ── 체크박스 행 ── */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '4px' }}>
-        <tbody><tr>
-          <td style={{ ...hd, width: '15%' }}>거주구분</td>
-          <td style={{ ...base, width: '10%' }}>☑ 거주자</td>
-          <td style={{ ...hd, width: '15%' }}>내·외국인</td>
-          <td style={{ ...base, width: '10%' }}>☑ 내국인</td>
-          <td style={{ ...hd, width: '15%' }}>종교인 여부</td>
-          <td style={{ ...base, width: '10%' }}>☐ 종교인</td>
-          <td style={{ ...hd, width: '15%' }}>연말정산구분</td>
-          <td style={{ ...base, width: '10%' }}>계속근로</td>
-        </tr></tbody>
-      </table>
+        {/* 원천징수의무자 */}
+        <Val posKey="companyName" val={CI.name} align="left" />
+        <Val posKey="bizNum" val={CI.businessNumber} />
+        <Val posKey="ceoName" val={CI.ceoName} align="left" />
+        <Val posKey="corpNum" val={CI.corporateNumber} />
+        <Val posKey="companyAddr" val={CI.address} align="left" fontSize="9px" />
 
-      {/* ═══ 원천징수의무자 + 소득자 ═══ */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
-        <tbody>
-          <tr>
-            <td style={{ ...hd, width: '55px' }} rowSpan="3">원천징수<br/>의무자</td>
-            <td style={{ ...hd, width: '75px' }}>①법인명(상호)</td>
-            <td style={{ ...L, minWidth: '120px' }}>{CI.name}</td>
-            <td style={{ ...hd, width: '85px' }}>②사업자등록번호</td>
-            <td style={base}>{CI.businessNumber}</td>
-            <td style={{ ...hd, width: '45px' }} rowSpan="3">소득자</td>
-            <td style={{ ...hd, width: '55px' }}>⑥성 명</td>
-            <td style={{ ...base, fontWeight: '600' }}>{emp.name}</td>
-          </tr>
-          <tr>
-            <td style={hd}>③대표자(성명)</td>
-            <td style={L}>{CI.ceoName}</td>
-            <td style={hd}>④주민(법인)<br/>등록번호</td>
-            <td style={base}>{CI.corporateNumber}</td>
-            <td style={hd}>⑦주민등록번호</td>
-            <td style={{ ...base, letterSpacing: '1px', fontSize: '9px' }}>{fmtRID(emp.birth_date, isMasked)}</td>
-          </tr>
-          <tr>
-            <td style={hd}>⑤주 소</td>
-            <td style={{ ...L, fontSize: '7.5px' }} colSpan="3">{CI.address}</td>
-            <td style={hd}>⑧주 소</td>
-            <td style={{ ...L, fontSize: '7.5px' }}>{emp.address || '-'}</td>
-          </tr>
-        </tbody>
-      </table>
+        {/* 소득자 */}
+        <Val posKey="empName" val={emp.name} weight="bold" />
+        <Val posKey="empRid" val={fmtRID(emp.birth_date, isMasked)} fontSize="10px" />
+        <Val posKey="empAddr" val={emp.address || '-'} align="left" fontSize="9px" />
 
-      {/* ═══ Ⅰ. 근무처별 소득명세 ═══ */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
-        <thead>
-          <tr><td style={secTitle} colSpan="10">Ⅰ. 근무처별 소득명세</td></tr>
-          <tr>
-            <th style={{ ...hd, width: '50px' }}>구 분</th>
-            <th style={hd}>근무기간</th>
-            <th style={hd}>⑨급 여</th>
-            <th style={hd}>⑩상여 등</th>
-            <th style={hd}>⑪인정상여</th>
-            <th style={hd}>⑫주식매수<br/>선택권</th>
-            <th style={hd}>⑬우리사주<br/>조합인출금</th>
-            <th style={hd}>⑭임원퇴직소득<br/>한도초과액</th>
-            <th style={hd}>⑮직무발명<br/>보상금</th>
-            <th style={{ ...hd, fontWeight: 'bold' }}>⑯계</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={hd}>주(현)<br/>근무지</td>
-            <td style={{ ...base, fontSize: '8px' }}>{emp.join_date}<br/>~{endDate}</td>
-            <td style={R}>{fmt(data.salary)}</td>
-            <td style={R}>{fmt(data.bonus)}</td>
-            <td style={R}></td>
-            <td style={R}></td>
-            <td style={R}></td>
-            <td style={R}></td>
-            <td style={R}></td>
-            <td style={{ ...R, fontWeight: 'bold' }}>{fmt(data.totalPay)}</td>
-          </tr>
-          <tr><td style={hd}>종(전)<br/>근무지</td><td style={base}></td><td style={R}></td><td style={R}></td><td style={R}></td><td style={R}></td><td style={R}></td><td style={R}></td><td style={R}></td><td style={R}></td></tr>
-        </tbody>
-      </table>
+        {/* Ⅰ. 소득명세 */}
+        <Val posKey="joinDate" val={emp.join_date} fontSize="9px" />
+        <Val posKey="resigDate" val={`~${endDate}`} fontSize="9px" />
+        <Val posKey="pSalary" val={fmt(data.salary)} align="right" />
+        <Val posKey="pBonus" val={fmt(data.bonus)} align="right" />
+        <Val posKey="pTotal" val={fmt(data.totalPay)} align="right" weight="bold" />
+        <Val posKey="pTaxFree" val={fmt(data.taxFreeSum)} align="right" weight="bold" />
 
-      {/* ═══ Ⅱ. 비과세 및 감면소득 명세 ═══ */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
-        <thead>
-          <tr><td style={secTitle} colSpan="8">Ⅱ. 비과세 및 감면소득 명세</td></tr>
-          <tr>
-            <th style={{ ...hd }} colSpan="6">비과세소득</th>
-            <th style={hd} colSpan="2">감면소득</th>
-          </tr>
-          <tr>
-            <th style={hd}>⑰코드</th><th style={hd}>금 액</th>
-            <th style={hd}>코드</th><th style={hd}>금 액</th>
-            <th style={hd}>코드</th><th style={hd}>금 액</th>
-            <th style={hd}>코드</th><th style={hd}>금 액</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            {[0, 1, 2].map(i => {
-              const entry = tfEntries[i];
-              return (<React.Fragment key={i}>
-                <td style={base}>{entry ? (TF_CODES[entry[0]] || 'Q01') : ''}</td>
-                <td style={R}>{entry ? fmt(entry[1]) : ''}</td>
-              </React.Fragment>);
-            })}
-            <td style={base}></td><td style={R}></td>
-          </tr>
-          <tr>
-            <td style={{ ...hd }} colSpan="5">⑳ 비과세소득 계</td>
-            <td style={{ ...R, fontWeight: 'bold' }}>{fmt(data.taxFreeSum)}</td>
-            <td style={hd}>㉑ 감면소득 계</td>
-            <td style={R}>0</td>
-          </tr>
-        </tbody>
-      </table>
+        {/* Ⅱ. 비과세 */}
+        <Val posKey="tf1Code" val={tfEntries[0] ? (TF_CODES[tfEntries[0][0]] || 'Q01') : ''} />
+        <Val posKey="tf1Amt" val={tfEntries[0] ? fmt(tfEntries[0][1]) : ''} align="right" />
+        <Val posKey="tf2Code" val={tfEntries[1] ? (TF_CODES[tfEntries[1][0]] || 'Q01') : ''} />
+        <Val posKey="tf2Amt" val={tfEntries[1] ? fmt(tfEntries[1][1]) : ''} align="right" />
+        <Val posKey="tf3Code" val={tfEntries[2] ? (TF_CODES[tfEntries[2][0]] || 'Q01') : ''} />
+        <Val posKey="tf3Amt" val={tfEntries[2] ? fmt(tfEntries[2][1]) : ''} align="right" />
+        <Val posKey="tfTotal" val={fmt(data.taxFreeSum)} align="right" weight="bold" />
 
-      {/* ═══ Ⅲ. 소득공제 (간략) ═══ */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
-        <thead><tr><td style={secTitle} colSpan="6">Ⅲ. 종합소득 과세표준 (간이)</td></tr></thead>
-        <tbody>
-          <tr>
-            <td style={hd}>총 급여</td><td style={R}>{fmt(data.totalPay)}</td>
-            <td style={hd}>(-) 비과세소득</td><td style={R}>{fmt(data.taxFreeSum)}</td>
-            <td style={hd}>과세대상 급여</td><td style={{ ...R, fontWeight: 'bold' }}>{fmt(data.totalPay - data.taxFreeSum)}</td>
-          </tr>
-          <tr>
-            <td style={hd}>(22)국민연금</td><td style={R}>{fmt(data.np)}</td>
-            <td style={hd}>(23)건강보험+장기요양</td><td style={R}>{fmt(data.hi + data.ltc)}</td>
-            <td style={hd}>(24)고용보험</td><td style={R}>{fmt(data.ei)}</td>
-          </tr>
-          <tr>
-            <td style={{ ...hd, fontWeight: 'bold' }} colSpan="4">보험료 공제 합계</td>
-            <td style={{ ...R, fontWeight: 'bold', fontSize: '10px' }} colSpan="2">{fmt(data.ins)}</td>
-          </tr>
-        </tbody>
-      </table>
+        {/* Ⅲ. 보험료 */}
+        <Val posKey="np" val={fmt(data.np)} align="right" />
+        <Val posKey="hi" val={fmt(data.hi)} align="right" />
+        <Val posKey="ltc" val={fmt(data.ltc)} align="right" />
+        <Val posKey="ei" val={fmt(data.ei)} align="right" />
 
-      {/* ═══ Ⅳ. 세액의 계산 ═══ */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px', borderTop: BDT }}>
-        <thead>
-          <tr><td style={{ ...secTitle, borderTop: BDT }} colSpan="4">Ⅳ. 세액의 계산</td></tr>
-          <tr>
-            <th style={{ ...hd, width: '40%' }}>구 분</th>
-            <th style={{ ...hd, width: '20%' }}>소 득 세</th>
-            <th style={{ ...hd, width: '20%' }}>지방소득세</th>
-            <th style={{ ...hd, width: '20%' }}>합 계</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={hd}>(72) 결정세액</td>
-            <td style={R}>{fmt(data.it)}</td>
-            <td style={R}>{fmt(data.rt)}</td>
-            <td style={{ ...R, fontWeight: 'bold' }}>{fmt(data.it + data.rt)}</td>
-          </tr>
-          <tr>
-            <td style={hd}>(73) 주(현)근무지 기납부세액</td>
-            <td style={R}>{fmt(data.it)}</td>
-            <td style={R}>{fmt(data.rt)}</td>
-            <td style={{ ...R, fontWeight: 'bold' }}>{fmt(data.it + data.rt)}</td>
-          </tr>
-          <tr>
-            <td style={hd}>(74) 종(전)근무지 기납부세액</td>
-            <td style={R}>0</td><td style={R}>0</td><td style={R}>0</td>
-          </tr>
-          <tr>
-            <td style={hd}>(75) 납부특례세액</td>
-            <td style={R}>0</td><td style={R}>0</td><td style={R}>0</td>
-          </tr>
-          <tr style={{ background: '#fffde7' }}>
-            <td style={{ ...hd, fontSize: '10px', fontWeight: 'bold', borderTop: BDT, borderBottom: BDT }}>
-              (76) 차감징수세액<br/>
-              <span style={{ fontSize: '7.5px', fontWeight: 'normal' }}>(72)-(73)-(74)-(75) &nbsp; 양수:추가징수 / 음수(△):환급</span>
-            </td>
-            <td style={{ ...R, fontSize: '12px', fontWeight: 'bold', borderTop: BDT, borderBottom: BDT }}>0</td>
-            <td style={{ ...R, fontSize: '12px', fontWeight: 'bold', borderTop: BDT, borderBottom: BDT }}>0</td>
-            <td style={{ ...R, fontSize: '14px', fontWeight: 'bold', borderTop: BDT, borderBottom: BDT }}>0</td>
-          </tr>
-        </tbody>
-      </table>
+        {/* Ⅳ. 세액 */}
+        <Val posKey="detIt" val={fmt(data.it)} align="right" />
+        <Val posKey="detRt" val={fmt(data.rt)} align="right" />
+        <Val posKey="detTot" val={fmt(data.it + data.rt)} align="right" weight="bold" />
+        
+        <Val posKey="paidIt" val={fmt(data.it)} align="right" />
+        <Val posKey="paidRt" val={fmt(data.rt)} align="right" />
+        <Val posKey="paidTot" val={fmt(data.it + data.rt)} align="right" weight="bold" />
+        
+        <Val posKey="diffIt" val="0" align="right" weight="bold" />
+        <Val posKey="diffRt" val="0" align="right" weight="bold" />
+        <Val posKey="diffTot" val="0" align="right" weight="bold" />
 
-      {/* ── 하단: 발급문구 + 서명 ── */}
-      <div style={{ textAlign: 'center', fontSize: '9px', lineHeight: '2', marginTop: '10px' }}>
-        <p>위의 원천징수영수증(지급조서)을 「소득세법」 제143조 및 같은 법 시행령 제213조에 의하여 발급합니다.</p>
-        <p style={{ fontSize: '11px', marginTop: '12px' }}>
-          {new Date().getFullYear()}년 &nbsp; {String(new Date().getMonth() + 1).padStart(2, '0')}월 &nbsp; {String(new Date().getDate()).padStart(2, '0')}일
-        </p>
-        <div style={{ marginTop: '16px', position: 'relative', display: 'inline-block' }}>
-          <p style={{ fontSize: '11px' }}>징수의무자 &nbsp;&nbsp; {CI.name}</p>
-          <p style={{ fontSize: '11px' }}>대표이사 &nbsp;&nbsp; {CI.ceoName} &nbsp; (인)</p>
-          <img src={CI.sealImagePath} alt="" style={{ position: 'absolute', right: '-30px', bottom: '-15px', width: '70px', height: '70px', opacity: 0.6 }} onError={e => { e.target.style.display = 'none'; }}/>
+        {/* 하단 서명 */}
+        <Val posKey="signYear" val={new Date().getFullYear()} />
+        <Val posKey="signMonth" val={new Date().getMonth() + 1} />
+        <Val posKey="signDay" val={new Date().getDate()} />
+        
+        <div style={{
+          position: 'absolute', top: `${POS.seal.top}%`, left: `${POS.seal.left}%`,
+          width: '70px', height: '70px', transform: 'translateY(-50%)', opacity: 0.6
+        }}>
+          <img src={CI.sealImagePath} alt="직인" style={{ width: '100%', height: '100%' }} onError={e => { e.target.style.display = 'none'; }} />
         </div>
-        <p style={{ marginTop: '20px', fontSize: '8px', color: '#888' }}>세무서장 · 지방국세청장 · 국세청장 귀하</p>
+
       </div>
     </div>
   );

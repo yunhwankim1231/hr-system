@@ -134,7 +134,7 @@ export default function WithholdingTaxReceipt() {
         </div>
       </div>
 
-      {selectedEmp && data && data.months > 0 && (
+      {selectedEmp && data && (
         <div className="print-only" style={{ background: '#fff' }}>
           {renderPage1(selectedEmp, data, isMasked)}
         </div>
@@ -144,6 +144,10 @@ export default function WithholdingTaxReceipt() {
         @media print {
           .withholding-receipt .print-only { display: block !important; }
           .no-print { display: none !important; }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           @page { size: A4 portrait; margin: 0; }
         }
         .print-only { display: none; }
