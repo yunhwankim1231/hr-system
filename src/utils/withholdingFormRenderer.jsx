@@ -142,9 +142,9 @@ export function WithholdingFormPage1({ emp, data, isMasked, debug, setDebug }) {
       </div>
 
       {debug && (
-        <div className="no-print" style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', marginBottom: '16px', fontSize: '12px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto' }}>
+        <div className="no-print" style={{ background: '#f8fafc', color: '#000', padding: '16px', borderRadius: '8px', marginBottom: '16px', fontSize: '12px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto' }}>
           <strong>새로운 위치 설정값 (복사해서 개발자에게 전달해주세요):</strong>
-          <pre>{JSON.stringify(positions, null, 2)}</pre>
+          <pre style={{ color: '#000' }}>{JSON.stringify(positions, null, 2)}</pre>
         </div>
       )}
 

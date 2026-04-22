@@ -8,12 +8,25 @@ export default function CertificateIssue() {
   const [certType, setCertType] = useState('employment'); // employment | career
   const [purpose, setPurpose] = useState('');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [position, setPosition] = useState('');
+  const [role, setRole] = useState('');
   const [showPreview, setShowPreview] = useState(false);
 
   const activeEmployees = employees.filter(e => !e.resignation_date);
   const allEmployees = employees;
   const targetList = certType === 'career' ? allEmployees : activeEmployees;
   const selectedEmp = employees.find(e => e.id === selectedEmpId);
+
+  // 직원 선택 시 기본 직책/직무 자동 세팅
+  React.useEffect(() => {
+    if (selectedEmp) {
+      setPosition(selectedEmp.position || '');
+      setRole(selectedEmp.role || '');
+    } else {
+      setPosition('');
+      setRole('');
+    }
+  }, [selectedEmp]);
 
   const handleGenerate = () => {
     if (!selectedEmpId) return alert('직원을 선택해주세요.');
@@ -138,7 +151,7 @@ export default function CertificateIssue() {
           </div>
 
           {/* 발급일 */}
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ marginBottom: '16px' }}>
             <label style={labelStyle}>발급일</label>
             <input
               type="date"
@@ -148,15 +161,37 @@ export default function CertificateIssue() {
             />
           </div>
 
+          {/* 직책 및 직무 직접 입력 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+            <div>
+              <label style={labelStyle}>직책 (직접 수정 가능)</label>
+              <input
+                type="text"
+                value={position}
+                onChange={e => setPosition(e.target.value)}
+                placeholder="직책 입력"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>직무 (직접 수정 가능)</label>
+              <input
+                type="text"
+                value={role}
+                onChange={e => setRole(e.target.value)}
+                placeholder="직무 입력"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
           {/* 선택된 직원 요약 */}
           {selectedEmp && (
             <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '16px', marginBottom: '24px', borderLeft: '4px solid var(--primary-color)' }}>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>선택된 직원 정보</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>선택된 직원 정보 요약</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px' }}>
                 <div><span style={{ color: 'var(--text-secondary)' }}>이름:</span> <strong>{selectedEmp.name}</strong></div>
                 <div><span style={{ color: 'var(--text-secondary)' }}>생년월일:</span> <strong>{selectedEmp.birth_date}</strong></div>
-                <div><span style={{ color: 'var(--text-secondary)' }}>직책:</span> <strong>{selectedEmp.position || '-'}</strong></div>
-                <div><span style={{ color: 'var(--text-secondary)' }}>직무:</span> <strong>{selectedEmp.role || '-'}</strong></div>
                 <div><span style={{ color: 'var(--text-secondary)' }}>입사일:</span> <strong>{selectedEmp.join_date}</strong></div>
                 <div><span style={{ color: 'var(--text-secondary)' }}>재직기간:</span> <strong>{getWorkPeriod(selectedEmp)}</strong></div>
               </div>
@@ -180,7 +215,7 @@ export default function CertificateIssue() {
             <div onClick={e => e.stopPropagation()} style={{ width: '700px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: '12px', padding: '0' }}>
               {/* 모달 내 미리보기 */}
               <div style={{ padding: '40px', color: '#000' }}>
-                {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn)}
+                {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role)}
               </div>
               <div style={{ padding: '16px 40px 24px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button onClick={() => setShowPreview(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: '#333', cursor: 'pointer' }}>닫기</button>
@@ -196,7 +231,7 @@ export default function CertificateIssue() {
       {/* ========== 인쇄 전용 증명서 ========== */}
       {selectedEmp && showPreview && (
         <div className="print-only" style={{ padding: '40px' }}>
-          {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn)}
+          {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role)}
         </div>
       )}
     </div>
@@ -204,7 +239,7 @@ export default function CertificateIssue() {
 }
 
 /* ===== 증명서 본문 렌더링 (화면 미리보기 + 인쇄 공용) ===== */
-function renderCertificate(emp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn) {
+function renderCertificate(emp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role) {
   const today = new Date(issueDate);
   const issueDateFormatted = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
 
@@ -233,9 +268,9 @@ function renderCertificate(emp, certType, purpose, issueDate, company, formatDat
           </tr>
           <tr>
             <td style={cellLabelStyle}>직 책</td>
-            <td style={cellValueStyle}>{emp.position || '-'}</td>
+            <td style={cellValueStyle}>{position || '-'}</td>
             <td style={cellLabelStyle}>직 무</td>
-            <td style={cellValueStyle}>{emp.role || '-'}</td>
+            <td style={cellValueStyle}>{role || '-'}</td>
           </tr>
           <tr>
             <td style={cellLabelStyle}>입 사 일</td>
