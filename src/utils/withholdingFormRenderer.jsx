@@ -82,7 +82,7 @@ let POS = {
   seal: { top: 93.0, left: 68, w: 15 },
 };
 
-export function renderPage1(emp, data, isMasked, debug, setDebug) {
+export function WithholdingFormPage1({ emp, data, isMasked, debug, setDebug }) {
   const CI = COMPANY_INFO;
   const endDate = emp.resignation_date || `${data.year}-12-31`;
   const tfEntries = Object.entries(data.tfMap || {});

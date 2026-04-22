@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { renderPage1 } from '../utils/withholdingFormRenderer';
+import { WithholdingFormPage1 } from '../utils/withholdingFormRenderer';
 import { Printer, FileCheck, UserCircle, Calendar, Eye, EyeOff } from 'lucide-react';
 
 const fmt = v => (v || 0).toLocaleString();
@@ -127,7 +127,7 @@ export default function WithholdingTaxReceipt() {
                   </div>
                 )}
                 <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
-                  {data && renderPage1(selectedEmp, data, isMasked, debug, setDebug)}
+                  {data && <WithholdingFormPage1 emp={selectedEmp} data={data} isMasked={isMasked} debug={debug} setDebug={setDebug} />}
                 </div>
               </div>
             )}
@@ -137,7 +137,7 @@ export default function WithholdingTaxReceipt() {
 
       {selectedEmp && data && (
         <div className="print-only" style={{ background: '#fff' }}>
-          {renderPage1(selectedEmp, data, isMasked, false, () => {})}
+          <WithholdingFormPage1 emp={selectedEmp} data={data} isMasked={isMasked} debug={false} setDebug={() => {}} />
         </div>
       )}
 
