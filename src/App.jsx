@@ -8,7 +8,9 @@ import CertificateIssue from './pages/CertificateIssue';
 import DailyWorkerManagement from './pages/DailyWorkerManagement.jsx';
 import IncomeReporting from './pages/IncomeReporting';
 import SeveranceManagement from './pages/SeveranceManagement';
-import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote } from 'lucide-react';
+import WithholdingTaxLedger from './pages/WithholdingTaxLedger';
+import WithholdingTaxReceipt from './pages/WithholdingTaxReceipt';
+import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote, ClipboardList, FileCheck } from 'lucide-react';
 import { AppProvider } from './context/AppContext';
 
 function AppLayout({ children }) {
@@ -23,6 +25,8 @@ function AppLayout({ children }) {
     { path: '/certificates', label: '증명서 발급', icon: Stamp },
     { path: '/leave', label: '연차 관리', icon: CalendarDays },
     { path: '/severance', label: '퇴직금 관리', icon: Banknote },
+    { path: '/withholding-ledger', label: '원천징수부', icon: ClipboardList },
+    { path: '/withholding-receipt', label: '원천징수영수증', icon: FileCheck },
   ];
 
   return (
@@ -75,6 +79,8 @@ function App() {
             <Route path="/certificates" element={<CertificateIssue />} />
             <Route path="/leave" element={<LeaveManagement />} />
             <Route path="/severance" element={<SeveranceManagement />} />
+            <Route path="/withholding-ledger" element={<WithholdingTaxLedger />} />
+            <Route path="/withholding-receipt" element={<WithholdingTaxReceipt />} />
           </Routes>
         </AppLayout>
       </Router>
