@@ -1,3 +1,4 @@
+import React from 'react';
 import COMPANY_INFO from '../config/companyInfo';
 
 /* 주민번호 포맷 */

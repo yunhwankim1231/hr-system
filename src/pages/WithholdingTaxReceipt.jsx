@@ -51,6 +51,7 @@ export default function WithholdingTaxReceipt() {
 
     const totalPay = salary + bonus;
     const ins = np + hi + ltc + ei;
+    // 마감 데이터가 없어도 0원 기본값으로 양식을 보여줌
     return { year: targetYear, months, salary, bonus, taxFreeSum, totalPay, np, hi, ltc, ei, ins, it, rt, tfMap };
   }, [selectedEmpId, targetYear, payrollArchives]);
 
@@ -117,13 +118,16 @@ export default function WithholdingTaxReceipt() {
                 <FileCheck size={48} style={{ marginBottom: '16px', opacity: 0.3 }}/>
                 <p>좌측에서 근로자를 선택하면<br/>법정 양식이 생성됩니다.</p>
               </div>
-            ) : !data || data.months === 0 ? (
-              <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                <p><strong>{selectedEmp.name}</strong>님의 {targetYear}년도 마감 급여 기록이 없습니다.</p>
-              </div>
             ) : (
-              <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
-                {renderPage1(selectedEmp, data, isMasked)}
+              <div>
+                {data && data.months === 0 && (
+                  <div style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '8px', padding: '10px 16px', marginBottom: '12px', fontSize: '13px', color: '#fbbf24' }}>
+                    ⚠️ {targetYear}년도 마감된 급여 기록이 없습니다. 양식 미리보기(0원)가 표시됩니다.
+                  </div>
+                )}
+                <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
+                  {data && renderPage1(selectedEmp, data, isMasked)}
+                </div>
               </div>
             )}
           </div>
