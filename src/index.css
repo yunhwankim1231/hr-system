@@ -279,6 +279,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .page-content {
     padding: 0 !important;
   }
+  .topbar {
+    display: none !important;
+  }
+  header.topbar {
+    display: none !important;
+  }
+  .topbar-title {
+    display: none !important;
+  }
   .content-container {
     padding: 0 !important;
     max-width: 100% !important;
@@ -309,7 +318,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
   @page {
     size: A4 portrait;
-    margin: 15mm;
+    margin: 0;
+  }
+  body {
+    margin: 0;
   }
 
   .page-break {

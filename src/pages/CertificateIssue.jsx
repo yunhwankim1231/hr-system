@@ -238,7 +238,7 @@ export default function CertificateIssue() {
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                       <span style={{ fontWeight: 'bold', color: 'white' }}>{cert.empName}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{cert.certNo}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>번호: {cert.certNo}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
                       <span style={{ color: 'var(--primary-color)' }}>{cert.type}</span>
