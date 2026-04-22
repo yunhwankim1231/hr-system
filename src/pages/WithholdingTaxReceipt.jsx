@@ -10,6 +10,7 @@ export default function WithholdingTaxReceipt() {
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [targetYear, setTargetYear] = useState(new Date().getFullYear());
   const [isMasked, setIsMasked] = useState(true);
+  const [debug, setDebug] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const selectedEmp = useMemo(() => employees.find(e => e.id === selectedEmpId), [employees, selectedEmpId]);
@@ -126,7 +127,7 @@ export default function WithholdingTaxReceipt() {
                   </div>
                 )}
                 <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
-                  {data && renderPage1(selectedEmp, data, isMasked)}
+                  {data && renderPage1(selectedEmp, data, isMasked, debug, setDebug)}
                 </div>
               </div>
             )}
@@ -136,7 +137,7 @@ export default function WithholdingTaxReceipt() {
 
       {selectedEmp && data && (
         <div className="print-only" style={{ background: '#fff' }}>
-          {renderPage1(selectedEmp, data, isMasked)}
+          {renderPage1(selectedEmp, data, isMasked, false, () => {})}
         </div>
       )}
 
