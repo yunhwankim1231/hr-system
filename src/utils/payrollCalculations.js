@@ -1,28 +1,30 @@
 import { getAge } from './getAge';
 
 /**
- * 간이 근로소득세 근사치 산출기 (국세청 간이세액표 대용)
- * @param {number} taxableIncome - 과세 대상 급여 총액
- * @param {number} dependents - 부양가족 수 (본인 포함, 기본값 1)
- * 
- * 인적공제: 부양가족 1인당 월 150,000원씩 과세표준에서 차감
- * (연간 1인당 150만원 기본공제 / 12개월 = 월 12.5만원이나, 간이세액표 근사치로 15만원 적용)
+ * 간이 근로소득세 산출기 (동적 구간 테이블 기반)
  */
-export function estimateIncomeTax(taxableIncome, dependents = 1) {
-  // 부양가족 인적공제 적용 (본인은 이미 기본 포함이므로 추가분만 차감)
+export function estimateIncomeTax(taxableIncome, dependents = 1, rates) {
+  const steps = rates?.incomeTaxSteps || [];
   const additionalDependents = Math.max(dependents - 1, 0);
   const deduction = additionalDependents * 150000;
   const adjustedIncome = Math.max(taxableIncome - deduction, 0);
 
-  // 2024년 간이세액표 근사치 로직 (과세표준 구간별 세율)
   if (adjustedIncome <= 1060000) return 0;
-  if (adjustedIncome <= 1500000) return Math.floor(adjustedIncome * 0.005 / 10) * 10;
-  if (adjustedIncome <= 2500000) return Math.floor(adjustedIncome * 0.012 / 10) * 10;
-  if (adjustedIncome <= 3500000) return Math.floor(adjustedIncome * 0.025 / 10) * 10;
-  if (adjustedIncome <= 5000000) return Math.floor(adjustedIncome * 0.045 / 10) * 10;
-  if (adjustedIncome <= 7000000) return Math.floor(adjustedIncome * 0.075 / 10) * 10;
-  if (adjustedIncome <= 10000000) return Math.floor(adjustedIncome * 0.12 / 10) * 10;
-  return Math.floor(adjustedIncome * 0.18 / 10) * 10;
+
+  const step = steps.find(s => adjustedIncome > s.over && adjustedIncome <= s.upTo);
+  let tax = 0;
+  if (step) {
+    tax = adjustedIncome * step.rate;
+  } else {
+    const lastStep = steps[steps.length - 1];
+    tax = adjustedIncome * (lastStep?.rate || 0.18);
+  }
+
+  if (dependents >= 2) {
+    tax = Math.max(tax - (rates?.childDeduction?.[1] || 0), 0);
+  }
+
+  return Math.floor(tax / 10) * 10;
 }
 
 /**
@@ -127,7 +129,7 @@ export function calculatePayroll({ employee, company, rates, paymentMonth }) {
 
   // 6. 소득세 및 지방소득세 (부양가족 인적공제 반영)
   const dependents = Number(employee.dependents) || 1;
-  let incomeTax = estimateIncomeTax(taxableTotal, dependents);
+  let incomeTax = estimateIncomeTax(taxableTotal, dependents, rates);
   let residentTax = Math.floor((incomeTax * 0.1) / 10) * 10;
 
   const totalDeductions = nationalPension + healthInsurance + longTermCare + employmentInsurance + incomeTax + residentTax;
@@ -183,7 +185,7 @@ export function recalculateDeductions({ taxableTotal, employee, rates, paymentMo
 
   // 5. 소득세
   const dependents = Number(employee.dependents) || 1;
-  const incomeTax = estimateIncomeTax(taxableTotal, dependents);
+  const incomeTax = estimateIncomeTax(taxableTotal, dependents, rates);
   const residentTax = Math.floor((incomeTax * 0.1) / 10) * 10;
 
   return {

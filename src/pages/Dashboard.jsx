@@ -86,10 +86,18 @@ export default function Dashboard() {
     }
   };
 
+  const [activeTab, setActiveTab] = useState('insurance'); // insurance | incomeTax
+
   const handleRateSave = (e) => {
     e.preventDefault();
     setInsuranceRates({ ...editingRates });
     setShowRateModal(false);
+  };
+
+  const updateIncomeTaxStep = (index, field, value) => {
+    const newSteps = [...(editingRates.incomeTaxSteps || [])];
+    newSteps[index][field] = field === 'rate' ? Number(value) : Number(value);
+    setEditingRates({ ...editingRates, incomeTaxSteps: newSteps });
   };
 
   return (
@@ -100,33 +108,60 @@ export default function Dashboard() {
 
       {showRateModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-card" style={{ width: '400px', position: 'relative' }}>
+          <div className="glass-card" style={{ width: '600px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
             <button onClick={() => setShowRateModal(false)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
               <X size={20} />
             </button>
             <h3 style={{ fontSize: '20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={20} /> 시스템 기준 요율 설정</h3>
+            
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px' }}>
+                <button onClick={() => setActiveTab('insurance')} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: activeTab === 'insurance' ? 'var(--primary-color)' : 'transparent', color: 'white', cursor: 'pointer' }}>4대 보험</button>
+                <button onClick={() => setActiveTab('incomeTax')} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: activeTab === 'incomeTax' ? 'var(--primary-color)' : 'transparent', color: 'white', cursor: 'pointer' }}>소득세 구간</button>
+            </div>
+
             <form onSubmit={handleRateSave} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>국민연금 (%)</label>
-                <input type="number" step="0.001" value={editingRates.nationalPension} onChange={(e) => setEditingRates({...editingRates, nationalPension: Number(e.target.value)})} style={inputStyle} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>건강보험 (%)</label>
-                <input type="number" step="0.001" value={editingRates.healthInsurance} onChange={(e) => setEditingRates({...editingRates, healthInsurance: Number(e.target.value)})} style={inputStyle} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>장기요양보험 (건강보험료 대비 %)</label>
-                <input type="number" step="0.001" value={editingRates.longTermCareRatio} onChange={(e) => setEditingRates({...editingRates, longTermCareRatio: Number(e.target.value)})} style={inputStyle} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>고용보험 (%)</label>
-                <input type="number" step="0.001" value={editingRates.employmentInsurance} onChange={(e) => setEditingRates({...editingRates, employmentInsurance: Number(e.target.value)})} style={inputStyle} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>산재보험 (%) - 회사 부담</label>
-                <input type="number" step="0.001" value={editingRates.workersComp} onChange={(e) => setEditingRates({...editingRates, workersComp: Number(e.target.value)})} style={inputStyle} required />
-              </div>
-              <div style={{ textAlign: 'right', marginTop: '8px' }}>
+              {activeTab === 'insurance' ? (
+                <>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>국민연금 (%)</label>
+                    <input type="number" step="0.001" value={editingRates.nationalPension} onChange={(e) => setEditingRates({...editingRates, nationalPension: Number(e.target.value)})} style={inputStyle} required />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>건강보험 (%)</label>
+                    <input type="number" step="0.001" value={editingRates.healthInsurance} onChange={(e) => setEditingRates({...editingRates, healthInsurance: Number(e.target.value)})} style={inputStyle} required />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>장기요양보험 (건강보험료 대비 %)</label>
+                    <input type="number" step="0.001" value={editingRates.longTermCareRatio} onChange={(e) => setEditingRates({...editingRates, longTermCareRatio: Number(e.target.value)})} style={inputStyle} required />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>고용보험 (%)</label>
+                    <input type="number" step="0.001" value={editingRates.employmentInsurance} onChange={(e) => setEditingRates({...editingRates, employmentInsurance: Number(e.target.value)})} style={inputStyle} required />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>산재보험 (%)</label>
+                    <input type="number" step="0.001" value={editingRates.workersComp} onChange={(e) => setEditingRates({...editingRates, workersComp: Number(e.target.value)})} style={inputStyle} required />
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
+                    <span>구간 시작(초과)</span><span>구간 종료(이하)</span><span>세율(소수점)</span>
+                  </div>
+                  {editingRates.incomeTaxSteps.map((step, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                      <input type="number" value={step.over} onChange={(e) => updateIncomeTaxStep(i, 'over', e.target.value)} style={smallInputStyle} />
+                      <input type="number" value={step.upTo} onChange={(e) => updateIncomeTaxStep(i, 'upTo', e.target.value)} style={smallInputStyle} />
+                      <input type="number" step="0.001" value={step.rate} onChange={(e) => updateIncomeTaxStep(i, 'rate', e.target.value)} style={smallInputStyle} />
+                    </div>
+                  ))}
+                  <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', color: 'var(--text-secondary)' }}>
+                    * 자녀 세액 공제(1명): <input type="number" value={editingRates.childDeduction?.[1]} onChange={(e) => setEditingRates({...editingRates, childDeduction: { ...editingRates.childDeduction, 1: Number(e.target.value) }})} style={{ ...smallInputStyle, width: '80px', display: 'inline' }} /> 원
+                  </div>
+                </div>
+              )}
+              
+              <div style={{ textAlign: 'right', marginTop: '16px' }}>
                 <button type="submit" className="btn btn-primary">변경사항 저장</button>
               </div>
             </form>
@@ -229,6 +264,17 @@ export default function Dashboard() {
     </div>
   );
 }
+
+const smallInputStyle = {
+  width: '100%',
+  padding: '6px 10px',
+  borderRadius: '6px',
+  background: 'rgba(0,0,0,0.3)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  color: 'white',
+  fontSize: '12px',
+  outline: 'none'
+};
 
 const inputStyle = {
   width: '100%',

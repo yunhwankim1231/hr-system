@@ -12,7 +12,18 @@ export const initialRates = {
   healthInsurance: 3.545,
   longTermCareRatio: 12.95,
   employmentInsurance: 0.9,
-  workersComp: 0.75
+  workersComp: 0.75,
+  incomeTaxSteps: [
+    { over: 0, upTo: 1060000, rate: 0, fixed: 0 },
+    { over: 1060000, upTo: 1500000, rate: 0.005, fixed: 0 },
+    { over: 1500000, upTo: 2500000, rate: 0.012, fixed: 0 },
+    { over: 2500000, upTo: 3500000, rate: 0.025, fixed: 0 },
+    { over: 3500000, upTo: 5000000, rate: 0.045, fixed: 127220 },
+    { over: 5000000, upTo: 7000000, rate: 0.075, fixed: 0 },
+    { over: 7000000, upTo: 10000000, rate: 0.12, fixed: 0 },
+    { over: 10000000, upTo: 99999999, rate: 0.18, fixed: 0 }
+  ],
+  childDeduction: { 1: 20830, 2: 45830, 3: 79160 }
 };
 
 const AppContext = createContext();
