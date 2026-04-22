@@ -23,7 +23,7 @@ const fmt = v => (v || 0).toLocaleString();
   * top: 위에서부터의 거리(%), left: 왼쪽에서부터의 거리(%), w: 너비(%)
   * 값이 틀어질 경우 여기서 미세조정(0.1% 단위)하면 됩니다.
 */
-const POS = {
+let POS = {
   // 상단
   year: { top: 3.5, left: 91, w: 5 },
   isResident: { top: 12.1, left: 15, w: 2 },
@@ -44,10 +44,10 @@ const POS = {
   // Ⅰ. 근무처별 소득명세 (주근무지)
   joinDate: { top: 26.5, left: 12, w: 8 },
   resigDate: { top: 27.5, left: 12, w: 8 },
-  pSalary: { top: 27.5, left: 21, w: 8 },    // (13)급여
-  pBonus: { top: 27.5, left: 29.5, w: 8 },   // (14)상여
-  pTotal: { top: 27.5, left: 80.5, w: 8 },   // (20)계
-  pTaxFree: { top: 27.5, left: 89, w: 9 },   // (21)비과세
+  pSalary: { top: 27.5, left: 21, w: 8 },    
+  pBonus: { top: 27.5, left: 29.5, w: 8 },   
+  pTotal: { top: 27.5, left: 80.5, w: 8 },   
+  pTaxFree: { top: 27.5, left: 89, w: 9 },   
 
   // Ⅱ. 비과세
   tf1Code: { top: 35.5, left: 7, w: 5 },
@@ -56,25 +56,23 @@ const POS = {
   tf2Amt: { top: 35.5, left: 27, w: 9 },
   tf3Code: { top: 35.5, left: 36.5, w: 5 },
   tf3Amt: { top: 35.5, left: 42, w: 9 },
-  tfTotal: { top: 38.4, left: 51.5, w: 14 }, // (20) 비과세소득계
+  tfTotal: { top: 38.4, left: 51.5, w: 14 },
 
-  // Ⅲ. 보험료 (가운데 하단쯤 위치 예상 - 대략 60%)
+  // Ⅲ. 보험료
   np: { top: 62.2, left: 22, w: 10 },
   hi: { top: 62.2, left: 42, w: 10 },
   ltc: { top: 62.2, left: 62, w: 10 },
   ei: { top: 65.0, left: 22, w: 10 },
 
-  // Ⅳ. 세액계산 (하단 예상 - 대략 75%)
-  detIt: { top: 76.5, left: 43, w: 12 },    // (72) 결정세액 소득세
-  detRt: { top: 76.5, left: 60, w: 12 },    // 지방소득세
-  detTot: { top: 76.5, left: 77, w: 20 },   // 합계
-  
-  paidIt: { top: 79.5, left: 43, w: 12 },   // (73) 기납부 소득세
-  paidRt: { top: 79.5, left: 60, w: 12 },   // 지방소득세
+  // Ⅳ. 세액계산
+  detIt: { top: 76.5, left: 43, w: 12 },    
+  detRt: { top: 76.5, left: 60, w: 12 },    
+  detTot: { top: 76.5, left: 77, w: 20 },   
+  paidIt: { top: 79.5, left: 43, w: 12 },   
+  paidRt: { top: 79.5, left: 60, w: 12 },   
   paidTot: { top: 79.5, left: 77, w: 20 },
-  
-  diffIt: { top: 86.8, left: 43, w: 12 },   // (76) 차감 소득세
-  diffRt: { top: 86.8, left: 60, w: 12 },   // 지방소득세
+  diffIt: { top: 86.8, left: 43, w: 12 },   
+  diffRt: { top: 86.8, left: 60, w: 12 },   
   diffTot: { top: 86.8, left: 77, w: 20 },
 
   // 하단 날짜 & 직인
@@ -88,28 +86,47 @@ export function renderPage1(emp, data, isMasked, debug, setDebug) {
   const CI = COMPANY_INFO;
   const endDate = emp.resignation_date || `${data.year}-12-31`;
   const tfEntries = Object.entries(data.tfMap || {});
+  const [positions, setPositions] = React.useState(POS);
 
-  // 값 절대 배치용 헬퍼 컴포넌트
+  const handleDragEnd = (e, posKey) => {
+    const rect = e.target.parentElement.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    let leftPct = (x / rect.width) * 100;
+    let topPct = (y / rect.height) * 100;
+    
+    setPositions(prev => ({
+      ...prev,
+      [posKey]: { ...prev[posKey], top: topPct.toFixed(1), left: leftPct.toFixed(1) }
+    }));
+  };
+
   const Val = ({ posKey, val, align = 'center', fontSize = '11px', weight = 'normal' }) => {
-    const p = POS[posKey];
+    const p = positions[posKey];
     if (!p) return null;
     return (
-      <div style={{
-        position: 'absolute',
-        top: `${p.top}%`,
-        left: `${p.left}%`,
-        width: `${p.w}%`,
-        textAlign: align,
-        fontSize: fontSize,
-        fontWeight: weight,
-        color: '#000',
-        transform: 'translateY(-50%)',
-        border: debug ? '1px solid red' : 'none',
-        background: debug ? 'rgba(255,0,0,0.1)' : 'transparent',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-      }}>
-        {val}
+      <div
+        draggable={debug}
+        onDragEnd={(e) => handleDragEnd(e, posKey)}
+        style={{
+          position: 'absolute',
+          top: `${p.top}%`,
+          left: `${p.left}%`,
+          width: `${p.w}%`,
+          textAlign: align,
+          fontSize: fontSize,
+          fontWeight: weight,
+          color: debug ? '#ef4444' : '#000',
+          transform: 'translate(-50%, -50%)',
+          border: debug ? '1px dashed red' : 'none',
+          background: debug ? 'rgba(255,255,255,0.8)' : 'transparent',
+          whiteSpace: 'nowrap',
+          overflow: 'visible',
+          cursor: debug ? 'move' : 'default',
+          zIndex: debug ? 10 : 1,
+          padding: debug ? '2px' : 0,
+        }}>
+        {val || '(빈값)'}
       </div>
     );
   };
@@ -117,18 +134,25 @@ export function renderPage1(emp, data, isMasked, debug, setDebug) {
   return (
     <div style={{ width: '100%', position: 'relative' }}>
       
-      {/* 화면상에서만 보이는 디버그 버튼 (인쇄 시 숨김) */}
+      {/* 디버그 툴바 */}
       <div className="no-print" style={{ textAlign: 'right', marginBottom: '10px' }}>
-        <button onClick={() => setDebug(!debug)} style={{ padding: '4px 8px', fontSize: '12px', background: debug ? '#ef4444' : '#475569', color: '#fff', borderRadius: '4px', border: 'none', cursor: 'pointer' }}>
-          {debug ? '테두리 숨기기' : '위치 조정용 테두리 보기'}
+        <button onClick={() => setDebug(!debug)} style={{ padding: '6px 12px', fontSize: '13px', background: debug ? '#ef4444' : '#475569', color: '#fff', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+          {debug ? '위치 편집 모드 종료' : '직접 위치 편집하기 (드래그)'}
         </button>
       </div>
 
+      {debug && (
+        <div className="no-print" style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', marginBottom: '16px', fontSize: '12px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto' }}>
+          <strong>새로운 위치 설정값 (복사해서 개발자에게 전달해주세요):</strong>
+          <pre>{JSON.stringify(positions, null, 2)}</pre>
+        </div>
+      )}
+
       {/* A4 비율의 컨테이너 */}
-      <div style={{ 
+      <div id="receipt-container" style={{ 
         position: 'relative', 
         width: '100%', 
-        aspectRatio: '210 / 297', // A4 세로 비율
+        aspectRatio: '210 / 297',
         backgroundImage: "url('/receipt_bg.png')",
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
