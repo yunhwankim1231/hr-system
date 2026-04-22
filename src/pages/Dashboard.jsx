@@ -79,7 +79,21 @@ export default function Dashboard() {
   const handleEditRatesClick = () => {
     const password = prompt("관리자 비밀번호를 입력하세요.");
     if (password === "짱구123") {
-      setEditingRates({ ...insuranceRates });
+      let ratesToEdit = { ...insuranceRates };
+      if (!ratesToEdit.incomeTaxSteps || ratesToEdit.incomeTaxSteps.length === 0) {
+        ratesToEdit.incomeTaxSteps = [
+          { over: 0, upTo: 1060000, rate: 0, fixed: 0 },
+          { over: 1060000, upTo: 1500000, rate: 0.005, fixed: 0 },
+          { over: 1500000, upTo: 2500000, rate: 0.012, fixed: 0 },
+          { over: 2500000, upTo: 3500000, rate: 0.025, fixed: 0 },
+          { over: 3500000, upTo: 5000000, rate: 0.045, fixed: 127220 },
+          { over: 5000000, upTo: 7000000, rate: 0.075, fixed: 0 },
+          { over: 7000000, upTo: 10000000, rate: 0.12, fixed: 0 },
+          { over: 10000000, upTo: 99999999, rate: 0.18, fixed: 0 }
+        ];
+        ratesToEdit.childDeduction = { 1: 20830, 2: 45830, 3: 79160 };
+      }
+      setEditingRates(ratesToEdit);
       setShowRateModal(true);
     } else if (password !== null) {
       alert("비밀번호가 일치하지 않습니다.");
@@ -103,6 +117,24 @@ export default function Dashboard() {
       newSteps[index][field] = Number(value);
     }
     setEditingRates({ ...editingRates, incomeTaxSteps: newSteps });
+  };
+
+  const handleResetIncomeTax = () => {
+    const defaultIncomeTaxSteps = [
+      { over: 0, upTo: 1060000, rate: 0, fixed: 0 },
+      { over: 1060000, upTo: 1500000, rate: 0.005, fixed: 0 },
+      { over: 1500000, upTo: 2500000, rate: 0.012, fixed: 0 },
+      { over: 2500000, upTo: 3500000, rate: 0.025, fixed: 0 },
+      { over: 3500000, upTo: 5000000, rate: 0.045, fixed: 127220 },
+      { over: 5000000, upTo: 7000000, rate: 0.075, fixed: 0 },
+      { over: 7000000, upTo: 10000000, rate: 0.12, fixed: 0 },
+      { over: 10000000, upTo: 99999999, rate: 0.18, fixed: 0 }
+    ];
+    setEditingRates({
+      ...editingRates,
+      incomeTaxSteps: defaultIncomeTaxSteps,
+      childDeduction: { 1: 20830, 2: 45830, 3: 79160 }
+    });
   };
 
   return (
@@ -150,6 +182,9 @@ export default function Dashboard() {
                 </>
               ) : (
                 <div style={{ fontSize: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                    <button type="button" onClick={handleResetIncomeTax} className="btn btn-outline" style={{ fontSize: '11px', padding: '4px 8px' }}>최신 세율로 초기화</button>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
                     <span>구간 시작(초과)</span><span>구간 종료(이하)</span><span>세율(소수점)</span>
                   </div>
