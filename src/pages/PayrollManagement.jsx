@@ -494,8 +494,14 @@ export default function PayrollManagement() {
                         </div>
                       </div>
                     ))}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontWeight: 'bold', paddingTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
-                      <span>지급 총계</span><span>{selectedData.taxableTotal.toLocaleString()}원</span>
+                    <div style={{ marginTop: '12px', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px' }}>
+                        <span>지급 총계</span><span>{selectedData.totalGrossPay.toLocaleString()}원</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        <span>(과세 대상: {selectedData.taxableTotal.toLocaleString()}원)</span>
+                        <span>(비과세: {selectedData.nonTaxableTotal.toLocaleString()}원)</span>
+                      </div>
                     </div>
                   </div>
 
