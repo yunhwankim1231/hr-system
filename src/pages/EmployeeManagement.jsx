@@ -125,6 +125,8 @@ export default function EmployeeManagement() {
     const payload = {
       ...formData,
       base_salary: Number(String(formData.base_salary).replace(/,/g, '')),
+      dependents: Number(formData.dependents) || 1,
+      children_count: Number(formData.children_count) || 0,
       extra_pays: cleanedExtraPays,
       probation_end_date: formData.probation_end_date || null
     };

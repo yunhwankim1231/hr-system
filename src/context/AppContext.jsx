@@ -50,7 +50,8 @@ export function AppProvider({ children }) {
 
         const mappedEmps = (dbEmps || []).map(e => ({
           ...e,
-          extra_pays: typeof e.addons === 'string' ? JSON.parse(e.addons) : (e.addons || [])
+          extra_pays: typeof e.addons === 'string' ? JSON.parse(e.addons) : (e.addons || []),
+          children_count: e.children_count !== undefined ? e.children_count : 0
         }));
 
         if ((!mappedEmps || mappedEmps.length === 0) && localStorage.getItem('employees_v2')) {
@@ -157,12 +158,23 @@ export function AppProvider({ children }) {
       continue_national_pension: rest.continue_national_pension || false,
       bank_name: rest.bank_name,
       account_number: rest.account_number,
+      children_count: rest.children_count || 0,
       addons: JSON.stringify(extra_pays || [])
     };
     
     const { error } = await supabase.from('employees').insert([payload]);
     if (error) {
       console.error('DB 저장 실패:', error.message);
+      // children_count 컬럼이 없으면 해당 필드 제외 후 재시도
+      if (error.message && error.message.includes('children_count')) {
+        const { children_count, ...fallbackPayload } = payload;
+        const { error: retryError } = await supabase.from('employees').insert([fallbackPayload]);
+        if (!retryError) {
+          setEmployees([...employees, { ...payload, extra_pays: extra_pays || [] }]);
+          alert('등록 성공! (단, 자녀 수는 DB 컬럼 추가 후 영구 저장됩니다)');
+          return;
+        }
+      }
       alert('저장 실패: ' + error.message);
       return;
     }
@@ -175,6 +187,9 @@ export function AppProvider({ children }) {
   const updateEmployee = async (id, updatedData) => {
     const { extra_pays, ...rest } = updatedData;
     const payload = { ...rest };
+    if (payload.children_count === undefined) payload.children_count = 0;
+    payload.children_count = Number(payload.children_count) || 0;
+    payload.dependents = Number(payload.dependents) || 1;
     if (extra_pays) payload.addons = JSON.stringify(extra_pays);
 
     const { error } = await supabase.from('employees').update(payload).eq('id', id);
@@ -182,6 +197,19 @@ export function AppProvider({ children }) {
       setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...updatedData } : emp));
     } else {
       console.error('DB 수정 실패:', error.message);
+      // children_count 컬럼이 없으면 해당 필드 제외 후 재시도
+      if (error.message && error.message.includes('children_count')) {
+        const { children_count, ...fallbackPayload } = payload;
+        const { error: retryError } = await supabase.from('employees').update(fallbackPayload).eq('id', id);
+        if (!retryError) {
+          setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...updatedData } : emp));
+          alert('저장 성공! (단, 자녀 수는 DB 컬럼 추가 후 영구 저장됩니다)');
+        } else {
+          alert('저장 실패: ' + retryError.message);
+        }
+      } else {
+        alert('저장 실패: ' + error.message);
+      }
     }
   };
 
