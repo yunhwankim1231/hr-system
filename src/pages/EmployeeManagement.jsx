@@ -37,7 +37,8 @@ export default function EmployeeManagement() {
     workplace: '',
     bank_name: '',
     account_number: '',
-    dependents: 1
+    dependents: 1,
+    children_count: 0
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -96,7 +97,8 @@ export default function EmployeeManagement() {
       workplace: emp.workplace || '',
       bank_name: emp.bank_name || '',
       account_number: emp.account_number || '',
-      dependents: emp.dependents || 1
+      dependents: emp.dependents || 1,
+      children_count: emp.children_count || 0
     });
     setEditMode(true);
     setEditingId(emp.id);
@@ -305,6 +307,10 @@ export default function EmployeeManagement() {
             <div className="form-group">
               <label>부양가족 수 (본인 포함)</label>
               <input type="number" min="1" name="dependents" value={formData.dependents} onChange={handleInputChange} style={inputStyle} placeholder="예: 기본 1명" />
+            </div>
+            <div className="form-group">
+              <label>8세~20세 자녀 수 (세액공제 대상)</label>
+              <input type="number" min="0" name="children_count" value={formData.children_count} onChange={handleInputChange} style={inputStyle} placeholder="예: 0명" />
             </div>
             <div className="form-group">
               <label>거주지 주소</label>

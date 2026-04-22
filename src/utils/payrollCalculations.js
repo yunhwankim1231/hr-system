@@ -20,7 +20,15 @@ export function estimateIncomeTax(taxableIncome, dependents = 1, rates) {
     tax = adjustedIncome * (lastStep?.rate || 0.18);
   }
 
-  if (dependents >= 2) {
+  // 3. 자녀 세액 공제 (임직원 정보의 children_count 기준)
+  const childCount = Number(rates?.childCountOverride) || 0; 
+  // 위는 임시. 호출부에서 children_count를 넘겨주도록 수정 필요
+  
+  if (childCount >= 3) {
+    tax = Math.max(tax - (rates?.childDeduction?.[3] || 0), 0);
+  } else if (childCount === 2) {
+    tax = Math.max(tax - (rates?.childDeduction?.[2] || 0), 0);
+  } else if (childCount === 1) {
     tax = Math.max(tax - (rates?.childDeduction?.[1] || 0), 0);
   }
 
@@ -127,9 +135,10 @@ export function calculatePayroll({ employee, company, rates, paymentMonth }) {
   // 5. 산재보험 (회사 전액 부담)
   let workersComp = Math.floor(taxableTotal * (rates.workersComp / 100) / 10) * 10;
 
-  // 6. 소득세 및 지방소득세 (부양가족 인적공제 반영)
+  // 6. 소득세 및 지방소득세 (부양가족 및 자녀 수 반영)
   const dependents = Number(employee.dependents) || 1;
-  let incomeTax = estimateIncomeTax(taxableTotal, dependents, rates);
+  const childCount = Number(employee.children_count) || 0;
+  let incomeTax = estimateIncomeTax(taxableTotal, dependents, { ...rates, childCountOverride: childCount });
   let residentTax = Math.floor((incomeTax * 0.1) / 10) * 10;
 
   const totalDeductions = nationalPension + healthInsurance + longTermCare + employmentInsurance + incomeTax + residentTax;

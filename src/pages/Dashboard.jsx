@@ -177,15 +177,42 @@ export default function Dashboard() {
                     </div>
                   ))}
                   <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', color: 'var(--text-secondary)' }}>
-                    * 자녀 세액 공제(1명): <input 
-                        type="text" 
-                        value={(editingRates.childDeduction?.[1] || 0).toLocaleString()} 
-                        onChange={(e) => {
-                            const numericVal = e.target.value.replace(/[^0-9]/g, '');
-                            setEditingRates({...editingRates, childDeduction: { ...editingRates.childDeduction, 1: Number(numericVal) }});
-                        }} 
-                        style={{ ...smallInputStyle, width: '80px', display: 'inline' }} 
-                      /> 원
+                    <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>* 자녀 세액 공제 (연령 8~20세)</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                      <div style={{ flex: '1 1 120px' }}>
+                        1명: <input 
+                          type="text" 
+                          value={(editingRates.childDeduction?.[1] || 0).toLocaleString()} 
+                          onChange={(e) => {
+                              const numericVal = e.target.value.replace(/[^0-9]/g, '');
+                              setEditingRates({...editingRates, childDeduction: { ...editingRates.childDeduction, 1: Number(numericVal) }});
+                          }} 
+                          style={{ ...smallInputStyle, width: '70px', display: 'inline' }} 
+                        />
+                      </div>
+                      <div style={{ flex: '1 1 120px' }}>
+                        2명: <input 
+                          type="text" 
+                          value={(editingRates.childDeduction?.[2] || 0).toLocaleString()} 
+                          onChange={(e) => {
+                              const numericVal = e.target.value.replace(/[^0-9]/g, '');
+                              setEditingRates({...editingRates, childDeduction: { ...editingRates.childDeduction, 2: Number(numericVal) }});
+                          }} 
+                          style={{ ...smallInputStyle, width: '70px', display: 'inline' }} 
+                        />
+                      </div>
+                      <div style={{ flex: '1 1 120px' }}>
+                        3명+: <input 
+                          type="text" 
+                          value={(editingRates.childDeduction?.[3] || 0).toLocaleString()} 
+                          onChange={(e) => {
+                              const numericVal = e.target.value.replace(/[^0-9]/g, '');
+                              setEditingRates({...editingRates, childDeduction: { ...editingRates.childDeduction, 3: Number(numericVal) }});
+                          }} 
+                          style={{ ...smallInputStyle, width: '70px', display: 'inline' }} 
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
