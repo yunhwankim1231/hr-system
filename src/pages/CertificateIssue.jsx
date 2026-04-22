@@ -3,7 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { FileText, Printer, Stamp } from 'lucide-react';
 
 export default function CertificateIssue() {
-  const { company, employees } = useAppContext();
+  const { company, employees, certificates, addCertificate } = useAppContext();
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [certType, setCertType] = useState('employment'); // employment | career
   const [purpose, setPurpose] = useState('');
@@ -31,6 +31,15 @@ export default function CertificateIssue() {
   const handleGenerate = () => {
     if (!selectedEmpId) return alert('직원을 선택해주세요.');
     if (!purpose) return alert('용도를 입력해주세요.');
+    
+    // 발급 기록 저장
+    addCertificate({
+      empName: selectedEmp.name,
+      type: certType === 'employment' ? '재직증명서' : '경력증명서',
+      purpose,
+      issueDate
+    });
+
     setShowPreview(true);
   };
 
@@ -70,138 +79,141 @@ export default function CertificateIssue() {
               <Stamp size={24} /> 증명서 발급
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
-              재직증명서 및 경력증명서를 자동 생성하고 인쇄합니다. 회사 직인이 자동으로 포함됩니다.
+              재직증명서 및 경력증명서를 자동 생성하고 인쇄합니다. 회사명은 <strong>{company.name}</strong>으로 출력됩니다.
             </p>
           </div>
         </div>
 
-        <div className="glass-card" style={{ maxWidth: '600px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px', color: 'var(--primary-color)' }}>발급 정보 입력</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '24px', alignItems: 'start' }}>
+          {/* 왼쪽: 입력 폼 */}
+          <div className="glass-card">
+            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px', color: 'var(--primary-color)' }}>발급 정보 입력</h3>
 
-          {/* 증명서 유형 */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={labelStyle}>증명서 유형</label>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => { setCertType('employment'); setSelectedEmpId(''); }}
-                className={certType === 'employment' ? 'btn btn-primary' : 'btn btn-outline'}
-                style={{ flex: 1 }}
-              >
-                📄 재직증명서
-              </button>
-              <button
-                onClick={() => { setCertType('career'); setSelectedEmpId(''); }}
-                className={certType === 'career' ? 'btn btn-primary' : 'btn btn-outline'}
-                style={{ flex: 1 }}
-              >
-                📋 경력증명서
-              </button>
-            </div>
-            {certType === 'career' && (
-              <div style={{ marginTop: '8px', fontSize: '12px', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '8px 12px', borderRadius: '6px' }}>
-                💡 경력증명서는 퇴사자를 포함한 전체 직원 목록에서 선택할 수 있습니다.
-              </div>
-            )}
-          </div>
-
-          {/* 직원 선택 */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={labelStyle}>대상 직원</label>
-            <select
-              value={selectedEmpId}
-              onChange={e => setSelectedEmpId(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="" style={{ background: '#0f172a' }}>-- 직원을 선택하세요 --</option>
-              {targetList.map(emp => (
-                <option key={emp.id} value={emp.id} style={{ background: '#0f172a', color: 'white' }}>
-                  {emp.name} ({emp.employment_type}) {emp.resignation_date ? '(퇴사)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 용도 선택/입력 */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={labelStyle}>발급 용도</label>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-              {['은행 제출용', '관공서 제출용', '비자 신청용', '기타'].map(p => (
+            {/* 증명서 유형 */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={labelStyle}>증명서 유형</label>
+              <div style={{ display: 'flex', gap: '12px' }}>
                 <button
-                  key={p}
-                  onClick={() => setPurpose(p === '기타' ? '' : p)}
-                  className="btn btn-outline"
-                  style={{
-                    fontSize: '13px', padding: '6px 12px',
-                    background: purpose === p ? 'var(--primary-color)' : 'transparent',
-                    color: purpose === p ? 'white' : 'var(--text-secondary)',
-                    border: purpose === p ? '1px solid var(--primary-color)' : '1px solid rgba(255,255,255,0.15)'
-                  }}
+                  onClick={() => { setCertType('employment'); setSelectedEmpId(''); }}
+                  className={certType === 'employment' ? 'btn btn-primary' : 'btn btn-outline'}
+                  style={{ flex: 1 }}
                 >
-                  {p}
+                  📄 재직증명서
                 </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              value={purpose}
-              onChange={e => setPurpose(e.target.value)}
-              placeholder="직접 입력 또는 위 버튼 선택"
-              style={inputStyle}
-            />
-          </div>
-
-          {/* 발급일 */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={labelStyle}>발급일</label>
-            <input
-              type="date"
-              value={issueDate}
-              onChange={e => setIssueDate(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-
-          {/* 직책 및 직무 직접 입력 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-            <div>
-              <label style={labelStyle}>직책 (직접 수정 가능)</label>
-              <input
-                type="text"
-                value={position}
-                onChange={e => setPosition(e.target.value)}
-                placeholder="직책 입력"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>직무 (직접 수정 가능)</label>
-              <input
-                type="text"
-                value={role}
-                onChange={e => setRole(e.target.value)}
-                placeholder="직무 입력"
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          {/* 선택된 직원 요약 */}
-          {selectedEmp && (
-            <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '16px', marginBottom: '24px', borderLeft: '4px solid var(--primary-color)' }}>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>선택된 직원 정보 요약</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px' }}>
-                <div><span style={{ color: 'var(--text-secondary)' }}>이름:</span> <strong>{selectedEmp.name}</strong></div>
-                <div><span style={{ color: 'var(--text-secondary)' }}>생년월일:</span> <strong>{selectedEmp.birth_date}</strong></div>
-                <div><span style={{ color: 'var(--text-secondary)' }}>입사일:</span> <strong>{selectedEmp.join_date}</strong></div>
-                <div><span style={{ color: 'var(--text-secondary)' }}>재직기간:</span> <strong>{getWorkPeriod(selectedEmp)}</strong></div>
+                <button
+                  onClick={() => { setCertType('career'); setSelectedEmpId(''); }}
+                  className={certType === 'career' ? 'btn btn-primary' : 'btn btn-outline'}
+                  style={{ flex: 1 }}
+                >
+                  📋 경력증명서
+                </button>
               </div>
             </div>
-          )}
 
-          <button className="btn btn-primary" onClick={handleGenerate} style={{ width: '100%', padding: '14px', fontSize: '16px' }}>
-            <FileText size={18} style={{ marginRight: '8px' }} />
-            증명서 미리보기 생성
-          </button>
+            {/* 직원 선택 */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={labelStyle}>대상 직원</label>
+              <select
+                value={selectedEmpId}
+                onChange={e => setSelectedEmpId(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="" style={{ background: '#0f172a' }}>-- 직원을 선택하세요 --</option>
+                {targetList.map(emp => (
+                  <option key={emp.id} value={emp.id} style={{ background: '#0f172a', color: 'white' }}>
+                    {emp.name} ({emp.employment_type}) {emp.resignation_date ? '(퇴사)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 용도 선택/입력 */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={labelStyle}>발급 용도</label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {['은행 제출용', '관공서 제출용', '비자 신청용', '기타'].map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setPurpose(p === '기타' ? '' : p)}
+                    className="btn btn-outline"
+                    style={{
+                      fontSize: '13px', padding: '6px 12px',
+                      background: purpose === p ? 'var(--primary-color)' : 'transparent',
+                      color: purpose === p ? 'white' : 'var(--text-secondary)',
+                      border: purpose === p ? '1px solid var(--primary-color)' : '1px solid rgba(255,255,255,0.15)'
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={purpose}
+                onChange={e => setPurpose(e.target.value)}
+                placeholder="직접 입력 또는 위 버튼 선택"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <label style={labelStyle}>발급일</label>
+                <input
+                  type="date"
+                  value={issueDate}
+                  onChange={e => setIssueDate(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+              <div>
+                <label style={labelStyle}>직책 (수정 가능)</label>
+                <input type="text" value={position} onChange={e => setPosition(e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>직무 (수정 가능)</label>
+                <input type="text" value={role} onChange={e => setRole(e.target.value)} style={inputStyle} />
+              </div>
+            </div>
+
+            <button className="btn btn-primary" onClick={handleGenerate} style={{ width: '100%', padding: '14px', fontSize: '16px' }}>
+              <FileText size={18} style={{ marginRight: '8px' }} />
+              증명서 미리보기 생성
+            </button>
+          </div>
+
+          {/* 오른쪽: 발급 기록 리스트 */}
+          <div className="glass-card" style={{ height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px', color: 'var(--text-secondary)' }}>최근 발급 기록</h3>
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+              {certificates && certificates.length > 0 ? (
+                certificates.map((cert) => (
+                  <div key={cert.id} style={{ 
+                    padding: '12px', 
+                    borderRadius: '8px', 
+                    background: 'rgba(255,255,255,0.05)', 
+                    marginBottom: '10px',
+                    border: '1px solid rgba(255,255,255,0.1)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 'bold', color: 'white' }}>{cert.empName}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{cert.issueDate}</span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--primary-color)', marginBottom: '4px' }}>{cert.type}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>용도: {cert.purpose}</div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '40px' }}>
+                  <FileText size={40} style={{ opacity: 0.2, marginBottom: '12px' }} />
+                  <p>발급 기록이 없습니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* 미리보기 모달 */}
@@ -213,7 +225,6 @@ export default function CertificateIssue() {
             zIndex: 1000
           }} onClick={() => setShowPreview(false)}>
             <div onClick={e => e.stopPropagation()} style={{ width: '700px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: '12px', padding: '0' }}>
-              {/* 모달 내 미리보기 */}
               <div style={{ padding: '40px', color: '#000' }}>
                 {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role)}
               </div>

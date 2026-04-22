@@ -4,7 +4,7 @@ import { supabase } from '../utils/supabaseClient';
 // 초기 단일 법인 데이터
 export const initialCompany = {
   id: 'C1',
-  name: '엔터프라이즈 (주)'
+  name: '명진기업(주)'
 };
 
 export const initialRates = {
@@ -24,6 +24,7 @@ export function AppProvider({ children }) {
   const [dailyWorkLogs, setDailyWorkLogs] = useState([]);
   const [insuranceRates, setInsuranceRates] = useState(initialRates);
   const [payrollArchives, setPayrollArchives] = useState([]);
+  const [certificates, setCertificates] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // 1. 초기 데이터 로드 및 마이그레이션 로직
@@ -60,6 +61,10 @@ export function AppProvider({ children }) {
           setDailyWorkLogs(dbLogs || []);
           const savedArchives = localStorage.getItem('payrollArchives');
           if (savedArchives) setPayrollArchives(JSON.parse(savedArchives));
+          
+          const savedCerts = localStorage.getItem('certificateHistory');
+          if (savedCerts) setCertificates(JSON.parse(savedCerts));
+
           if (dbSettings) setInsuranceRates(dbSettings.value);
         }
       } catch (error) {
@@ -220,11 +225,19 @@ export function AppProvider({ children }) {
     });
   };
 
+  const addCertificate = (cert) => {
+    setCertificates(prev => {
+      const newCerts = [{ ...cert, id: `CERT-${Date.now()}`, issuedAt: new Date().toISOString() }, ...prev];
+      localStorage.setItem('certificateHistory', JSON.stringify(newCerts));
+      return newCerts;
+    });
+  };
+
   return (
     <AppContext.Provider value={{
-      company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, loading,
+      company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, loading,
       setInsuranceRates: updateRates, addEmployee, updateEmployee, resignEmployee, cancelResignation,
-      addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive
+      addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, addCertificate
     }}>
       {children}
     </AppContext.Provider>
