@@ -10,6 +10,7 @@ export default function CertificateIssue() {
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [position, setPosition] = useState('');
   const [role, setRole] = useState('');
+  const [customSeal, setCustomSeal] = useState(localStorage.getItem('customSeal') || '');
   const [showPreview, setShowPreview] = useState(false);
 
   const activeEmployees = employees.filter(e => !e.resignation_date);
@@ -179,6 +180,43 @@ export default function CertificateIssue() {
               </div>
             </div>
 
+            {/* 직인 업로드 */}
+            <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <label style={labelStyle}>회사 직인 업로드 (배경 없는 PNG 권장)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setCustomSeal(reader.result);
+                        localStorage.setItem('customSeal', reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  style={{ fontSize: '12px' }}
+                />
+                {customSeal && (
+                  <button 
+                    onClick={() => { setCustomSeal(''); localStorage.removeItem('customSeal'); }}
+                    style={{ fontSize: '12px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    직인 삭제
+                  </button>
+                )}
+              </div>
+              {customSeal && (
+                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>현재 등록된 직인:</span>
+                  <img src={customSeal} alt="직인 미리보기" style={{ width: '40px', height: '40px', objectFit: 'contain', border: '1px solid #333' }} />
+                </div>
+              )}
+            </div>
+
             <button className="btn btn-primary" onClick={handleGenerate} style={{ width: '100%', padding: '14px', fontSize: '16px' }}>
               <FileText size={18} style={{ marginRight: '8px' }} />
               증명서 미리보기 생성
@@ -200,10 +238,13 @@ export default function CertificateIssue() {
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                       <span style={{ fontWeight: 'bold', color: 'white' }}>{cert.empName}</span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{cert.issueDate}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{cert.certNo}</span>
                     </div>
-                    <div style={{ fontSize: '13px', color: 'var(--primary-color)', marginBottom: '4px' }}>{cert.type}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>용도: {cert.purpose}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--primary-color)' }}>{cert.type}</span>
+                      <span>{cert.issueDate}</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>용도: {cert.purpose}</div>
                   </div>
                 ))
               ) : (
@@ -226,7 +267,7 @@ export default function CertificateIssue() {
           }} onClick={() => setShowPreview(false)}>
             <div onClick={e => e.stopPropagation()} style={{ width: '700px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: '12px', padding: '0' }}>
               <div style={{ padding: '40px', color: '#000' }}>
-                {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role)}
+                {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal)}
               </div>
               <div style={{ padding: '16px 40px 24px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button onClick={() => setShowPreview(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: '#333', cursor: 'pointer' }}>닫기</button>
@@ -242,7 +283,7 @@ export default function CertificateIssue() {
       {/* ========== 인쇄 전용 증명서 ========== */}
       {selectedEmp && showPreview && (
         <div className="print-only" style={{ padding: '40px' }}>
-          {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role)}
+          {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal)}
         </div>
       )}
     </div>
@@ -250,7 +291,7 @@ export default function CertificateIssue() {
 }
 
 /* ===== 증명서 본문 렌더링 (화면 미리보기 + 인쇄 공용) ===== */
-function renderCertificate(emp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role) {
+function renderCertificate(emp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal) {
   const today = new Date(issueDate);
   const issueDateFormatted = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
 
@@ -327,27 +368,42 @@ function renderCertificate(emp, certType, purpose, issueDate, company, formatDat
         </div>
         <div style={{ fontSize: '16px', marginBottom: '20px' }}>대 표 이 사 (인)</div>
 
-        {/* 가상 직인 (회사명 + 원형 도장) */}
-        <div style={{
-          display: 'inline-block',
-          width: '100px', height: '100px',
-          borderRadius: '50%',
-          border: '3px solid #cc0000',
-          color: '#cc0000',
-          fontSize: '13px',
-          fontWeight: 'bold',
-          lineHeight: '1.3',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          margin: '0 auto',
-          transform: 'rotate(-8deg)',
-          opacity: 0.85,
-          padding: '10px'
-        }}>
-          {company.name}<br />대표이사<br />직인
-        </div>
+        {/* 직인 표시 (커스텀 업로드 또는 기본 가상 직인) */}
+        {customSeal ? (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(40px, -20px)', // 글자와 겹치게 조정
+            width: '80px',
+            height: '80px',
+            zIndex: 10,
+            pointerEvents: 'none'
+          }}>
+            <img src={customSeal} alt="직인" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+        ) : (
+          <div style={{
+            display: 'inline-block',
+            width: '100px', height: '100px',
+            borderRadius: '50%',
+            border: '3px solid #cc0000',
+            color: '#cc0000',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            lineHeight: '1.3',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            margin: '0 auto',
+            transform: 'rotate(-8deg)',
+            opacity: 0.85,
+            padding: '10px'
+          }}>
+            {company.name}<br />대표이사<br />직인
+          </div>
+        )}
       </div>
 
       {/* 하단 구분선 */}
