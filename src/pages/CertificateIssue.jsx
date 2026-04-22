@@ -11,6 +11,7 @@ export default function CertificateIssue() {
   const [position, setPosition] = useState('');
   const [role, setRole] = useState('');
   const [customSeal, setCustomSeal] = useState(localStorage.getItem('customSeal') || '');
+  const [currentCertNo, setCurrentCertNo] = useState('');
   const [showPreview, setShowPreview] = useState(false);
 
   const activeEmployees = employees.filter(e => !e.resignation_date);
@@ -33,14 +34,20 @@ export default function CertificateIssue() {
     if (!selectedEmpId) return alert('직원을 선택해주세요.');
     if (!purpose) return alert('용도를 입력해주세요.');
     
+    // 발급번호 생성 (여기서 한 번만 생성하여 저장과 출력에 동일하게 사용)
+    const certNo = `CERT-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+    
     // 발급 기록 저장
     addCertificate({
       empName: selectedEmp.name,
+      certNo: certNo,
       type: certType === 'employment' ? '재직증명서' : '경력증명서',
       purpose,
       issueDate
     });
 
+    // 현재 미리보기용 발급번호 상태 저장 (필요 시)
+    setCurrentCertNo(certNo);
     setShowPreview(true);
   };
 
@@ -238,7 +245,7 @@ export default function CertificateIssue() {
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                       <span style={{ fontWeight: 'bold', color: 'white' }}>{cert.empName}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>번호: {cert.certNo}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>번호: {cert.certNo || 'N/A'}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
                       <span style={{ color: 'var(--primary-color)' }}>{cert.type}</span>
@@ -267,7 +274,7 @@ export default function CertificateIssue() {
           }} onClick={() => setShowPreview(false)}>
             <div onClick={e => e.stopPropagation()} style={{ width: '700px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: '12px', padding: '0' }}>
               <div style={{ padding: '40px', color: '#000' }}>
-                {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal)}
+                {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal, currentCertNo)}
               </div>
               <div style={{ padding: '16px 40px 24px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button onClick={() => setShowPreview(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: '#333', cursor: 'pointer' }}>닫기</button>
@@ -283,7 +290,7 @@ export default function CertificateIssue() {
       {/* ========== 인쇄 전용 증명서 ========== */}
       {selectedEmp && showPreview && (
         <div className="print-only" style={{ padding: '40px' }}>
-          {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal)}
+          {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal, currentCertNo)}
         </div>
       )}
     </div>
@@ -291,7 +298,7 @@ export default function CertificateIssue() {
 }
 
 /* ===== 증명서 본문 렌더링 (화면 미리보기 + 인쇄 공용) ===== */
-function renderCertificate(emp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal) {
+function renderCertificate(emp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal, certNo) {
   const today = new Date(issueDate);
   const issueDateFormatted = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
 
@@ -408,7 +415,7 @@ function renderCertificate(emp, certType, purpose, issueDate, company, formatDat
 
       {/* 하단 구분선 */}
       <div style={{ borderTop: '2px solid #000', marginTop: '40px', paddingTop: '10px', textAlign: 'center', fontSize: '12px', color: '#666' }}>
-        본 증명서는 {purpose}으로 발급되었습니다. | 발급번호: CERT-{Date.now().toString(36).toUpperCase().slice(-6)}
+        본 증명서는 {purpose}으로 발급되었습니다. | 발급번호: {certNo}
       </div>
     </div>
   );
