@@ -1,28 +1,51 @@
 import { getAge } from './getAge';
 
 /**
- * 간이 근로소득세 산출기 (동적 구간 테이블 기반)
+ * 간이 근로소득세 산출기 (누진세 구간 테이블 기반)
+ * 
+ * 계산 방식: 해당 구간의 누적세액(fixed) + (과세소득 - 구간시작) × 세율
+ * 예) 과세소득 7,000,000원, 구간 5M~7M (rate: 0.075, fixed: 106,700)
+ *     → 106,700 + (7,000,000 - 5,000,000) × 0.075 = 256,700원
  */
 export function estimateIncomeTax(taxableIncome, dependents = 1, rates) {
-  const steps = rates?.incomeTaxSteps || [];
+  // 기본 누진세 구간 (fixed = 해당 구간 시작점까지의 누적세액)
+  const defaultSteps = [
+    { over: 0,         upTo: 1060000,   rate: 0,     fixed: 0 },
+    { over: 1060000,   upTo: 1500000,   rate: 0.005, fixed: 0 },
+    { over: 1500000,   upTo: 2500000,   rate: 0.012, fixed: 2200 },
+    { over: 2500000,   upTo: 3500000,   rate: 0.025, fixed: 14200 },
+    { over: 3500000,   upTo: 5000000,   rate: 0.045, fixed: 39200 },
+    { over: 5000000,   upTo: 7000000,   rate: 0.075, fixed: 106700 },
+    { over: 7000000,   upTo: 10000000,  rate: 0.12,  fixed: 256700 },
+    { over: 10000000,  upTo: 99999999,  rate: 0.18,  fixed: 616700 }
+  ];
+
+  const steps = (rates?.incomeTaxSteps && rates.incomeTaxSteps.length > 0) 
+    ? rates.incomeTaxSteps 
+    : defaultSteps;
+
+  // 1. 부양가족 인적공제 (본인 제외 1인당 15만원)
   const additionalDependents = Math.max(dependents - 1, 0);
   const deduction = additionalDependents * 150000;
   const adjustedIncome = Math.max(taxableIncome - deduction, 0);
 
   if (adjustedIncome <= 1060000) return 0;
 
+  // 2. 누진세 계산: fixed + (초과분 × rate)
   const step = steps.find(s => adjustedIncome > s.over && adjustedIncome <= s.upTo);
   let tax = 0;
   if (step) {
-    tax = adjustedIncome * step.rate;
+    const fixedTax = Number(step.fixed) || 0;
+    tax = fixedTax + (adjustedIncome - step.over) * step.rate;
   } else {
+    // 최고 구간 초과 시
     const lastStep = steps[steps.length - 1];
-    tax = adjustedIncome * (lastStep?.rate || 0.18);
+    const fixedTax = Number(lastStep?.fixed) || 0;
+    tax = fixedTax + (adjustedIncome - (lastStep?.over || 0)) * (lastStep?.rate || 0.18);
   }
 
   // 3. 자녀 세액 공제 (임직원 정보의 children_count 기준)
   const childCount = Number(rates?.childCountOverride) || 0; 
-  // 위는 임시. 호출부에서 children_count를 넘겨주도록 수정 필요
   
   if (childCount >= 3) {
     tax = Math.max(tax - (rates?.childDeduction?.[3] || 0), 0);
@@ -192,9 +215,10 @@ export function recalculateDeductions({ taxableTotal, employee, rates, paymentMo
     employmentInsurance = Math.floor(taxableTotal * (rates.employmentInsurance / 100) / 10) * 10;
   }
 
-  // 5. 소득세
+  // 5. 소득세 (자녀 세액공제 포함)
   const dependents = Number(employee.dependents) || 1;
-  const incomeTax = estimateIncomeTax(taxableTotal, dependents, rates);
+  const childCount = Number(employee.children_count) || 0;
+  const incomeTax = estimateIncomeTax(taxableTotal, dependents, { ...rates, childCountOverride: childCount });
   const residentTax = Math.floor((incomeTax * 0.1) / 10) * 10;
 
   return {
