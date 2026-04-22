@@ -96,7 +96,12 @@ export default function Dashboard() {
 
   const updateIncomeTaxStep = (index, field, value) => {
     const newSteps = [...(editingRates.incomeTaxSteps || [])];
-    newSteps[index][field] = field === 'rate' ? Number(value) : Number(value);
+    if (field === 'over' || field === 'upTo' || field === 'fixed') {
+      const numericVal = value.replace(/[^0-9]/g, '');
+      newSteps[index][field] = Number(numericVal);
+    } else {
+      newSteps[index][field] = Number(value);
+    }
     setEditingRates({ ...editingRates, incomeTaxSteps: newSteps });
   };
 
@@ -148,15 +153,39 @@ export default function Dashboard() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
                     <span>구간 시작(초과)</span><span>구간 종료(이하)</span><span>세율(소수점)</span>
                   </div>
-                  {editingRates.incomeTaxSteps.map((step, i) => (
+                  {(editingRates.incomeTaxSteps || []).map((step, i) => (
                     <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                      <input type="number" value={step.over} onChange={(e) => updateIncomeTaxStep(i, 'over', e.target.value)} style={smallInputStyle} />
-                      <input type="number" value={step.upTo} onChange={(e) => updateIncomeTaxStep(i, 'upTo', e.target.value)} style={smallInputStyle} />
-                      <input type="number" step="0.001" value={step.rate} onChange={(e) => updateIncomeTaxStep(i, 'rate', e.target.value)} style={smallInputStyle} />
+                      <input 
+                        type="text" 
+                        value={step.over.toLocaleString()} 
+                        onChange={(e) => updateIncomeTaxStep(i, 'over', e.target.value)} 
+                        style={smallInputStyle} 
+                      />
+                      <input 
+                        type="text" 
+                        value={step.upTo.toLocaleString()} 
+                        onChange={(e) => updateIncomeTaxStep(i, 'upTo', e.target.value)} 
+                        style={smallInputStyle} 
+                      />
+                      <input 
+                        type="number" 
+                        step="0.001" 
+                        value={step.rate} 
+                        onChange={(e) => updateIncomeTaxStep(i, 'rate', e.target.value)} 
+                        style={smallInputStyle} 
+                      />
                     </div>
                   ))}
                   <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', color: 'var(--text-secondary)' }}>
-                    * 자녀 세액 공제(1명): <input type="number" value={editingRates.childDeduction?.[1]} onChange={(e) => setEditingRates({...editingRates, childDeduction: { ...editingRates.childDeduction, 1: Number(e.target.value) }})} style={{ ...smallInputStyle, width: '80px', display: 'inline' }} /> 원
+                    * 자녀 세액 공제(1명): <input 
+                        type="text" 
+                        value={(editingRates.childDeduction?.[1] || 0).toLocaleString()} 
+                        onChange={(e) => {
+                            const numericVal = e.target.value.replace(/[^0-9]/g, '');
+                            setEditingRates({...editingRates, childDeduction: { ...editingRates.childDeduction, 1: Number(numericVal) }});
+                        }} 
+                        style={{ ...smallInputStyle, width: '80px', display: 'inline' }} 
+                      /> 원
                   </div>
                 </div>
               )}
