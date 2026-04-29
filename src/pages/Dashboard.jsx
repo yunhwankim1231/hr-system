@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { calculatePayroll } from '../utils/payrollCalculations';
 import { Users, CreditCard, ShieldCheck, Bell, Settings, X } from 'lucide-react';
+import DashboardCalendar from '../components/DashboardCalendar';
 
 export default function Dashboard() {
   const { company, employees, insuranceRates, setInsuranceRates } = useAppContext();
@@ -352,6 +353,8 @@ export default function Dashboard() {
           </ul>
         )}
       </div>
+
+      <DashboardCalendar />
     </div>
   );
 }

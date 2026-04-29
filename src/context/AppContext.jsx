@@ -36,6 +36,8 @@ export function AppProvider({ children }) {
   const [insuranceRates, setInsuranceRates] = useState(initialRates);
   const [payrollArchives, setPayrollArchives] = useState([]);
   const [certificates, setCertificates] = useState([]);
+  const [calendarNotes, setCalendarNotes] = useState({});
+  const [leaveRecords, setLeaveRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // 1. 초기 데이터 로드 및 마이그레이션 로직
@@ -46,12 +48,15 @@ export function AppProvider({ children }) {
         const { data: dbEmps } = await supabase.from('employees').select('*');
         const { data: dbDailyWorkers } = await supabase.from('daily_workers').select('*');
         const { data: dbLogs } = await supabase.from('daily_work_logs').select('*');
+        const { data: dbLeave } = await supabase.from('leave_management').select('*');
         const { data: dbSettings } = await supabase.from('system_settings').select('value').eq('key', 'insurance_rates').single();
+        const { data: dbCalendarNotes } = await supabase.from('system_settings').select('value').eq('key', 'calendar_notes').single();
 
         const mappedEmps = (dbEmps || []).map(e => ({
           ...e,
           extra_pays: typeof e.addons === 'string' ? JSON.parse(e.addons) : (e.addons || []),
-          children_count: e.children_count !== undefined ? e.children_count : 0
+          children_count: e.children_count !== undefined ? e.children_count : 0,
+          work_hours: e.work_hours !== undefined ? e.work_hours : 8
         }));
 
         if ((!mappedEmps || mappedEmps.length === 0) && localStorage.getItem('employees_v2')) {
@@ -71,6 +76,7 @@ export function AppProvider({ children }) {
           setEmployees(mappedEmps);
           setDailyWorkers(dbDailyWorkers || []);
           setDailyWorkLogs(dbLogs || []);
+          setLeaveRecords(dbLeave || []);
           const savedArchives = localStorage.getItem('payrollArchives');
           if (savedArchives) setPayrollArchives(JSON.parse(savedArchives));
           
@@ -78,6 +84,7 @@ export function AppProvider({ children }) {
           if (savedCerts) setCertificates(JSON.parse(savedCerts));
 
           if (dbSettings) setInsuranceRates(dbSettings.value);
+          if (dbCalendarNotes) setCalendarNotes(dbCalendarNotes.value);
         }
       } catch (error) {
         console.error('데이터 로드 실패:', error);
@@ -159,19 +166,20 @@ export function AppProvider({ children }) {
       bank_name: rest.bank_name,
       account_number: rest.account_number,
       children_count: rest.children_count || 0,
+      work_hours: rest.work_hours || 8,
       addons: JSON.stringify(extra_pays || [])
     };
     
     const { error } = await supabase.from('employees').insert([payload]);
     if (error) {
       console.error('DB 저장 실패:', error.message);
-      // children_count 컬럼이 없으면 해당 필드 제외 후 재시도
-      if (error.message && error.message.includes('children_count')) {
-        const { children_count, ...fallbackPayload } = payload;
+      // children_count 또는 work_hours 컬럼이 없으면 해당 필드 제외 후 재시도
+      if (error.message && (error.message.includes('children_count') || error.message.includes('work_hours'))) {
+        const { children_count, work_hours, ...fallbackPayload } = payload;
         const { error: retryError } = await supabase.from('employees').insert([fallbackPayload]);
         if (!retryError) {
           setEmployees([...employees, { ...payload, extra_pays: extra_pays || [] }]);
-          alert('등록 성공! (단, 자녀 수는 DB 컬럼 추가 후 영구 저장됩니다)');
+          alert('등록 성공! (단, 일부 특수 컬럼은 DB 구조에 따라 영구 저장되지 않을 수 있습니다)');
           return;
         }
       }
@@ -187,27 +195,29 @@ export function AppProvider({ children }) {
   const updateEmployee = async (id, updatedData) => {
     const { extra_pays, ...rest } = updatedData;
     const payload = { ...rest };
-    if (payload.children_count === undefined) payload.children_count = 0;
-    payload.children_count = Number(payload.children_count) || 0;
+    if (payload.children_count !== undefined) payload.children_count = Number(payload.children_count) || 0;
+    if (payload.work_hours !== undefined) payload.work_hours = Number(payload.work_hours) || 8;
     payload.dependents = Number(payload.dependents) || 1;
     if (extra_pays) payload.addons = JSON.stringify(extra_pays);
 
+    // 1. 즉시 로컬 상태 업데이트 (낙관적 업데이트)
+    const originalEmps = [...employees];
+    setEmployees(prev => prev.map(emp => emp.id === id ? { ...emp, ...updatedData } : emp));
+
+    // 2. DB 업데이트 시도
     const { error } = await supabase.from('employees').update(payload).eq('id', id);
-    if (!error) {
-      setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...updatedData } : emp));
-    } else {
+    if (error) {
       console.error('DB 수정 실패:', error.message);
-      // children_count 컬럼이 없으면 해당 필드 제외 후 재시도
-      if (error.message && error.message.includes('children_count')) {
-        const { children_count, ...fallbackPayload } = payload;
+      if (error.message && (error.message.includes('children_count') || error.message.includes('work_hours'))) {
+        const { children_count, work_hours, ...fallbackPayload } = payload;
         const { error: retryError } = await supabase.from('employees').update(fallbackPayload).eq('id', id);
-        if (!retryError) {
-          setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...updatedData } : emp));
-          alert('저장 성공! (단, 자녀 수는 DB 컬럼 추가 후 영구 저장됩니다)');
-        } else {
+        if (retryError) {
+          // 실패 시 롤백
+          setEmployees(originalEmps);
           alert('저장 실패: ' + retryError.message);
         }
       } else {
+        setEmployees(originalEmps);
         alert('저장 실패: ' + error.message);
       }
     }
@@ -255,6 +265,11 @@ export function AppProvider({ children }) {
     if (!error) setInsuranceRates(newRates);
   };
 
+  const updateCalendarNotes = async (newNotes) => {
+    const { error } = await supabase.from('system_settings').upsert({ key: 'calendar_notes', value: newNotes });
+    if (!error) setCalendarNotes(newNotes);
+  };
+
   const saveArchive = (year, month, snapshotData) => {
     setPayrollArchives(prev => {
       const filtered = prev.filter(p => !(p.year === year && p.month === month));
@@ -272,11 +287,49 @@ export function AppProvider({ children }) {
     });
   };
 
+  const addLeaveRecord = async (record) => {
+    const { error, data } = await supabase.from('leave_management').insert([record]).select();
+    if (!error && data) {
+      setLeaveRecords([...leaveRecords, data[0]]);
+    } else if (error) {
+      console.error('연차 기록 저장 실패:', error.message);
+      alert('연차 저장 실패: ' + error.message + '\n(팁: DB에 LeaveManagement 테이블이 생성되어 있는지 확인해주세요)');
+    }
+  };
+
+  const removeLeaveRecord = async (empId, year) => {
+    const yearStart = `${year}-01-01`;
+    const yearEnd = `${year}-12-31`;
+    
+    const { data: targetRecords, error: fetchError } = await supabase
+      .from('leave_management')
+      .select('id')
+      .eq('employee_id', empId)
+      .gte('leave_date', yearStart)
+      .lte('leave_date', yearEnd)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (fetchError) {
+      alert('기록 조회 실패: ' + fetchError.message);
+      return;
+    }
+
+    if (targetRecords && targetRecords.length > 0) {
+      const { error: deleteError } = await supabase.from('leave_management').delete().eq('id', targetRecords[0].id);
+      if (!deleteError) {
+        setLeaveRecords(leaveRecords.filter(r => r.id !== targetRecords[0].id));
+      } else {
+        alert('기록 삭제 실패: ' + deleteError.message);
+      }
+    }
+  };
+
   return (
     <AppContext.Provider value={{
-      company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, loading,
-      setInsuranceRates: updateRates, addEmployee, updateEmployee, resignEmployee, cancelResignation,
-      addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, addCertificate
+      company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, calendarNotes, leaveRecords, loading,
+      setInsuranceRates: updateRates, setCalendarNotes: updateCalendarNotes, addEmployee, updateEmployee, resignEmployee, cancelResignation,
+      addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, addCertificate, addLeaveRecord, removeLeaveRecord, setLeaveRecords
     }}>
       {children}
     </AppContext.Provider>
