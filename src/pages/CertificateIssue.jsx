@@ -13,11 +13,23 @@ export default function CertificateIssue() {
   const [customSeal, setCustomSeal] = useState(localStorage.getItem('customSeal') || '');
   const [currentCertNo, setCurrentCertNo] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // 직원 검색어 상태 추가
 
   const activeEmployees = employees.filter(e => !e.resignation_date);
   const allEmployees = employees;
   const targetList = certType === 'career' ? allEmployees : activeEmployees;
-  const selectedEmp = employees.find(e => e.id === selectedEmpId);
+  
+  // 검색어에 따른 직원 필터링 (최적화)
+  const filteredTargetList = React.useMemo(() => {
+    return targetList.filter(emp => 
+      emp.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [targetList, searchQuery]);
+
+  // 선택된 직원 객체 찾기 (최적화)
+  const selectedEmp = React.useMemo(() => {
+    return employees.find(e => e.id === selectedEmpId);
+  }, [employees, selectedEmpId]);
 
   // 직원 선택 시 기본 직책/직무 자동 세팅
   React.useEffect(() => {
@@ -30,6 +42,11 @@ export default function CertificateIssue() {
     }
   }, [selectedEmp]);
 
+  // [추가] 검색어나 증명서 유형 변경 시 선택된 직원 초기화
+  React.useEffect(() => {
+    setSelectedEmpId('');
+  }, [searchQuery, certType]);
+
   const handleGenerate = () => {
     if (!selectedEmpId) return alert('직원을 선택해주세요.');
     if (!purpose) return alert('용도를 입력해주세요.');
@@ -40,6 +57,7 @@ export default function CertificateIssue() {
     // 발급 기록 저장
     addCertificate({
       empName: selectedEmp.name,
+      employee_id: selectedEmp.id,
       certNo: certNo,
       type: certType === 'employment' ? '재직증명서' : '경력증명서',
       purpose,
@@ -120,14 +138,26 @@ export default function CertificateIssue() {
 
             {/* 직원 선택 */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>대상 직원</label>
+              <label style={labelStyle}>대상 직원 검색 및 선택</label>
+              <div style={{ position: 'relative', marginBottom: '8px' }}>
+                <input 
+                  type="text" 
+                  placeholder="이름으로 검색..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ ...inputStyle, paddingLeft: '36px', background: 'rgba(255,255,255,0.05)' }}
+                />
+                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+              </div>
               <select
                 value={selectedEmpId}
                 onChange={e => setSelectedEmpId(e.target.value)}
                 style={inputStyle}
               >
-                <option value="" style={{ background: '#0f172a' }}>-- 직원을 선택하세요 --</option>
-                {targetList.map(emp => (
+                <option value="" style={{ background: '#0f172a' }}>
+                  {filteredTargetList.length > 0 ? `-- ${filteredTargetList.length}명의 검색 결과 중 선택 --` : '-- 검색 결과가 없습니다 --'}
+                </option>
+                {filteredTargetList.map(emp => (
                   <option key={emp.id} value={emp.id} style={{ background: '#0f172a', color: 'white' }}>
                     {emp.name} ({emp.employment_type}) {emp.resignation_date ? '(퇴사)' : ''}
                   </option>
@@ -197,10 +227,26 @@ export default function CertificateIssue() {
                   onChange={(e) => {
                     const file = e.target.files[0];
                     if (file) {
+                      // [방어 로직 1] 파일 용량 제한 (2MB)
+                      const maxSize = 2 * 1024 * 1024;
+                      if (file.size > maxSize) {
+                        alert("직인 이미지는 2MB 이하만 업로드 가능합니다.");
+                        e.target.value = ''; // input 초기화
+                        return;
+                      }
+
                       const reader = new FileReader();
                       reader.onloadend = () => {
-                        setCustomSeal(reader.result);
-                        localStorage.setItem('customSeal', reader.result);
+                        const base64String = reader.result;
+                        setCustomSeal(base64String);
+                        
+                        // [방어 로직 2] localStorage 용량 초과 대응
+                        try {
+                          localStorage.setItem('customSeal', base64String);
+                        } catch (error) {
+                          console.error("LocalStorage Save Error:", error);
+                          alert("이미지 용량이 너무 커서 브라우저에 저장할 수 없습니다. (용량이 작은 이미지를 사용해 주세요)");
+                        }
                       };
                       reader.readAsDataURL(file);
                     }
@@ -244,12 +290,12 @@ export default function CertificateIssue() {
                     border: '1px solid rgba(255,255,255,0.1)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 'bold', color: 'white' }}>{cert.empName}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>번호: {cert.certNo || 'N/A'}</span>
+                      <span style={{ fontWeight: 'bold', color: 'white' }}>{cert.emp_name || cert.empName}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>번호: {cert.cert_no || cert.certNo || 'N/A'}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
                       <span style={{ color: 'var(--primary-color)' }}>{cert.type}</span>
-                      <span>{cert.issueDate}</span>
+                      <span>{cert.issue_date || cert.issueDate}</span>
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>용도: {cert.purpose}</div>
                   </div>
@@ -391,7 +437,6 @@ function renderCertificate(emp, certType, purpose, issueDate, company, formatDat
           </div>
         ) : (
           <div style={{
-            display: 'inline-block',
             width: '100px', height: '100px',
             borderRadius: '50%',
             border: '3px solid #cc0000',

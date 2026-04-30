@@ -38,6 +38,7 @@ export function AppProvider({ children }) {
   const [certificates, setCertificates] = useState([]);
   const [calendarNotes, setCalendarNotes] = useState({});
   const [leaveRecords, setLeaveRecords] = useState([]);
+  const [taxRates, setTaxRates] = useState([]); // 퇴직소득 세율 추가
   const [loading, setLoading] = useState(true);
 
   // 1. 초기 데이터 로드 및 마이그레이션 로직
@@ -49,8 +50,10 @@ export function AppProvider({ children }) {
         const { data: dbDailyWorkers } = await supabase.from('daily_workers').select('*');
         const { data: dbLogs } = await supabase.from('daily_work_logs').select('*');
         const { data: dbLeave } = await supabase.from('leave_management').select('*');
+        const { data: dbCerts } = await supabase.from('certificates').select('*').order('created_at', { ascending: false });
         const { data: dbSettings } = await supabase.from('system_settings').select('value').eq('key', 'insurance_rates').single();
         const { data: dbCalendarNotes } = await supabase.from('system_settings').select('value').eq('key', 'calendar_notes').single();
+        const { data: dbTaxRates } = await supabase.from('tax_rate_table').select('*').order('min_amount', { ascending: true });
 
         const mappedEmps = (dbEmps || []).map(e => ({
           ...e,
@@ -77,14 +80,17 @@ export function AppProvider({ children }) {
           setDailyWorkers(dbDailyWorkers || []);
           setDailyWorkLogs(dbLogs || []);
           setLeaveRecords(dbLeave || []);
-          const savedArchives = localStorage.getItem('payrollArchives');
-          if (savedArchives) setPayrollArchives(JSON.parse(savedArchives));
-          
-          const savedCerts = localStorage.getItem('certificateHistory');
-          if (savedCerts) setCertificates(JSON.parse(savedCerts));
+          setCertificates(dbCerts || []);
 
           if (dbSettings) setInsuranceRates(dbSettings.value);
           if (dbCalendarNotes) setCalendarNotes(dbCalendarNotes.value);
+          if (dbTaxRates) setTaxRates(dbTaxRates);
+
+          // 로컬에만 데이터가 있고 DB에 없는 경우 마이그레이션 체크
+          if ((!dbCerts || dbCerts.length === 0) && localStorage.getItem('certificateHistory')) {
+            console.log('증명서 기록 마이그레이션 시작...');
+            migrateCertificates();
+          }
         }
       } catch (error) {
         console.error('데이터 로드 실패:', error);
@@ -140,6 +146,25 @@ export function AppProvider({ children }) {
     }
   };
 
+  const migrateCertificates = async () => {
+    const localCerts = JSON.parse(localStorage.getItem('certificateHistory') || '[]');
+    if (localCerts.length > 0) {
+      const { data, error } = await supabase.from('certificates').insert(localCerts.map(c => ({
+        emp_name: c.empName,
+        cert_no: c.certNo,
+        type: c.type,
+        purpose: c.purpose,
+        issue_date: c.issueDate,
+        created_at: c.issuedAt || new Date().toISOString()
+      })));
+      if (!error) {
+        const { data: dbCerts } = await supabase.from('certificates').select('*').order('created_at', { ascending: false });
+        setCertificates(dbCerts || []);
+        console.log('증명서 마이그레이션 완료');
+      }
+    }
+  };
+
   // 2. 직원 관리 CRUD (DB 컬럼에 맞게 엄격하게 필터링)
   const addEmployee = async (empData) => {
     const { extra_pays, ...rest } = empData;
@@ -167,7 +192,10 @@ export function AppProvider({ children }) {
       account_number: rest.account_number,
       children_count: rest.children_count || 0,
       work_hours: rest.work_hours || 8,
-      addons: JSON.stringify(extra_pays || [])
+      addons: JSON.stringify(extra_pays || []),
+      has_irp_account: rest.has_irp_account || false,
+      irp_account_number: rest.irp_account_number || '',
+      irp_provider: rest.irp_provider || ''
     };
     
     const { error } = await supabase.from('employees').insert([payload]);
@@ -199,6 +227,11 @@ export function AppProvider({ children }) {
     if (payload.work_hours !== undefined) payload.work_hours = Number(payload.work_hours) || 8;
     payload.dependents = Number(payload.dependents) || 1;
     if (extra_pays) payload.addons = JSON.stringify(extra_pays);
+    
+    // IRP 필드 명시적 추가
+    if (updatedData.has_irp_account !== undefined) payload.has_irp_account = updatedData.has_irp_account;
+    if (updatedData.irp_account_number !== undefined) payload.irp_account_number = updatedData.irp_account_number;
+    if (updatedData.irp_provider !== undefined) payload.irp_provider = updatedData.irp_provider;
 
     // 1. 즉시 로컬 상태 업데이트 (낙관적 업데이트)
     const originalEmps = [...employees];
@@ -279,12 +312,24 @@ export function AppProvider({ children }) {
     });
   };
 
-  const addCertificate = (cert) => {
-    setCertificates(prev => {
-      const newCerts = [{ ...cert, id: `CERT-${Date.now()}`, issuedAt: new Date().toISOString() }, ...prev];
-      localStorage.setItem('certificateHistory', JSON.stringify(newCerts));
-      return newCerts;
-    });
+  const addCertificate = async (cert) => {
+    const payload = {
+      emp_name: cert.empName,
+      cert_no: cert.certNo,
+      type: cert.type,
+      purpose: cert.purpose,
+      issue_date: cert.issueDate,
+      employee_id: cert.employee_id || null // 연동된 직원 ID가 있으면 저장
+    };
+
+    const { data, error } = await supabase.from('certificates').insert([payload]).select();
+    
+    if (!error && data) {
+      setCertificates(prev => [data[0], ...prev]);
+    } else if (error) {
+      console.error('증명서 저장 실패:', error.message);
+      alert('증명서 기록 저장 실패: ' + error.message);
+    }
   };
 
   const addLeaveRecord = async (record) => {
@@ -325,11 +370,59 @@ export function AppProvider({ children }) {
     }
   };
 
+  const toggleLeaveRecord = async (empId, dateStr, currentVal) => {
+    // 0 -> 1.0 -> 0.5 -> 0 순환
+    let nextVal = 0;
+    if (currentVal === 0) nextVal = 1.0;
+    else if (currentVal === 1.0) nextVal = 0.5;
+    else nextVal = 0;
+
+    try {
+      // 1. 기존 해당 날짜 기록 삭제
+      await supabase
+        .from('leave_management')
+        .delete()
+        .eq('employee_id', empId)
+        .eq('leave_date', dateStr);
+
+      // 2. 새로운 기록 추가 (nextVal > 0 인 경우)
+      if (nextVal > 0) {
+        const { data: newData, error: insError } = await supabase
+          .from('leave_management')
+          .insert([{
+            employee_id: empId,
+            leave_date: dateStr,
+            leave_days: nextVal,
+            status: '승인',
+            reason: '캘린더 수동 기록'
+          }])
+          .select();
+
+        if (insError) throw insError;
+        
+        if (newData && newData[0]) {
+          setLeaveRecords(prev => [
+            ...prev.filter(r => !(r.employee_id === empId && r.leave_date === dateStr)),
+            newData[0]
+          ]);
+        }
+      } else {
+        // 삭제만 수행된 경우 상태 업데이트
+        setLeaveRecords(prev => prev.filter(r => !(r.employee_id === empId && r.leave_date === dateStr)));
+      }
+      return true;
+    } catch (err) {
+      console.error('연차 기록 토글 실패:', err.message);
+      return false;
+    }
+  };
+
   return (
     <AppContext.Provider value={{
-      company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, calendarNotes, leaveRecords, loading,
+      company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, calendarNotes, leaveRecords, taxRates, loading,
       setInsuranceRates: updateRates, setCalendarNotes: updateCalendarNotes, addEmployee, updateEmployee, resignEmployee, cancelResignation,
-      addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, addCertificate, addLeaveRecord, removeLeaveRecord, setLeaveRecords
+      addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, addCertificate, addLeaveRecord, removeLeaveRecord, setLeaveRecords,
+      toggleLeaveRecord
     }}>
       {children}
     </AppContext.Provider>

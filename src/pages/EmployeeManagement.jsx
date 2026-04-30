@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { UserPlus, UserMinus, Edit, X, Search } from 'lucide-react';
 
@@ -27,6 +27,7 @@ export default function EmployeeManagement() {
     base_salary: '',
     extra_pays: [], // { name, amount, isTaxFree }
     birth_date: '',
+    resident_number: '',
     phone: '',
     address: '',
     employment_type: '정규직',
@@ -37,6 +38,9 @@ export default function EmployeeManagement() {
     workplace: '',
     bank_name: '',
     account_number: '',
+    has_irp_account: false,
+    irp_account_number: '',
+    irp_provider: '',
     dependents: 1,
     children_count: 0
   };
@@ -52,6 +56,38 @@ export default function EmployeeManagement() {
       value = numericVal ? Number(numericVal).toLocaleString() : '';
     }
     
+    // 주민등록번호 포맷팅 및 생년월일 자동 산출
+    if (name === 'resident_number') {
+      const numericVal = value.replace(/[^0-9]/g, '');
+      const limitedVal = numericVal.slice(0, 13);
+      
+      // 하이픈 추가
+      if (limitedVal.length <= 6) {
+        value = limitedVal;
+      } else {
+        value = `${limitedVal.slice(0, 6)}-${limitedVal.slice(6)}`;
+      }
+
+      // 생년월일 자동 계산
+      if (limitedVal.length >= 7) {
+        const yy = limitedVal.slice(0, 2);
+        const mm = limitedVal.slice(2, 4);
+        const dd = limitedVal.slice(4, 6);
+        const genderCode = limitedVal.charAt(6);
+        
+        let century = '19';
+        if (['3', '4', '7', '8'].includes(genderCode)) {
+          century = '20';
+        } else if (['9', '0'].includes(genderCode)) {
+          century = '18';
+        }
+        
+        const calculatedBirth = `${century}${yy}-${mm}-${dd}`;
+        setFormData(prev => ({ ...prev, [name]: value, birth_date: calculatedBirth }));
+        return;
+      }
+    }
+
     // 연락처 하이픈 자동 서식
     if (name === 'phone') {
       const numericVal = value.replace(/[^0-9]/g, '');
@@ -87,6 +123,7 @@ export default function EmployeeManagement() {
       base_salary: emp.base_salary ? Number(emp.base_salary).toLocaleString() : '',
       extra_pays: emp.extra_pays ? emp.extra_pays.map(ep => ({ ...ep, amount: ep.amount ? Number(ep.amount).toLocaleString() : '' })) : [],
       birth_date: emp.birth_date,
+      resident_number: emp.resident_number || '',
       phone: emp.phone || '',
       address: emp.address || '',
       employment_type: emp.employment_type,
@@ -97,6 +134,9 @@ export default function EmployeeManagement() {
       workplace: emp.workplace || '',
       bank_name: emp.bank_name || '',
       account_number: emp.account_number || '',
+      has_irp_account: emp.has_irp_account || false,
+      irp_account_number: emp.irp_account_number || '',
+      irp_provider: emp.irp_provider || '',
       dependents: emp.dependents || 1,
       children_count: emp.children_count || 0
     });
@@ -112,22 +152,24 @@ export default function EmployeeManagement() {
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.base_salary || !formData.birth_date || !formData.join_date) {
-      alert("이름, 생년월일, 계약 기본급, 입사일은 필수 항목입니다.");
+    if (!formData.name || !formData.base_salary || !formData.resident_number || !formData.join_date) {
+      alert("이름, 주민등록번호, 계약 기본급, 입사일은 필수 항목입니다.");
       return;
     }
     
     // extra_pays 빈 값 필터링 및 숫자 변환
     const cleanedExtraPays = formData.extra_pays
-      .filter(ep => ep.name && ep.amount !== '')
-      .map(ep => ({ name: ep.name, amount: Number(String(ep.amount).replace(/,/g, '')), isTaxFree: !!ep.isTaxFree }));
+      .filter(ep => ep.name)
+      .map(ep => ({ name: ep.name, amount: Number(String(ep.amount).replace(/[^0-9]/g, '')) || 0, isTaxFree: !!ep.isTaxFree }));
 
     const payload = {
       ...formData,
-      base_salary: Number(String(formData.base_salary).replace(/,/g, '')),
+      base_salary: Number(String(formData.base_salary).replace(/[^0-9]/g, '')),
       dependents: Number(formData.dependents) || 1,
       children_count: Number(formData.children_count) || 0,
       extra_pays: cleanedExtraPays,
+      irp_provider: formData.has_irp_account ? formData.irp_provider : '',
+      irp_account_number: formData.has_irp_account ? formData.irp_account_number : '',
       probation_end_date: formData.probation_end_date || null
     };
 
@@ -144,7 +186,7 @@ export default function EmployeeManagement() {
     const newExtraPays = [...formData.extra_pays];
     if (field === 'amount') {
       const numericVal = value.replace(/[^0-9]/g, '');
-      newExtraPays[index][field] = numericVal ? Number(numericVal).toLocaleString() : '';
+      newExtraPays[index][field] = numericVal ? Number(numericVal).toLocaleString() : '0';
     } else {
       newExtraPays[index][field] = value;
     }
@@ -178,30 +220,32 @@ export default function EmployeeManagement() {
   // 사업장 목록 동적 생성
   const workplaceList = [...new Set(employees.map(e => e.workplace).filter(Boolean))];
 
-  const filteredEmployees = employees.filter(emp => {
-    // 텍스트 검색 (이름, 연락처, 직무, 직책)
-    const q = searchQuery.toLowerCase();
-    const matchesText = !q || 
-      emp.name.toLowerCase().includes(q) || 
-      (emp.phone && emp.phone.includes(q)) ||
-      (emp.role && emp.role.toLowerCase().includes(q)) ||
-      (emp.position && emp.position.toLowerCase().includes(q)) ||
-      emp.employment_type.includes(q);
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      // 텍스트 검색 (이름, 연락처, 직무, 직책)
+      const q = searchQuery.toLowerCase();
+      const matchesText = !q || 
+        emp.name.toLowerCase().includes(q) || 
+        (emp.phone && emp.phone.includes(q)) ||
+        (emp.role && emp.role.toLowerCase().includes(q)) ||
+        (emp.position && emp.position.toLowerCase().includes(q)) ||
+        emp.employment_type.includes(q);
 
-    // 고용형태 필터
-    const matchesType = filterType === 'all' || emp.employment_type === filterType;
+      // 고용형태 필터
+      const matchesType = filterType === 'all' || emp.employment_type === filterType;
 
-    // 재직상태 필터
-    const matchesStatus = 
-      filterStatus === 'all' ? true :
-      filterStatus === 'active' ? !emp.resignation_date :
-      !!emp.resignation_date;
+      // 재직상태 필터
+      const matchesStatus = 
+        filterStatus === 'all' ? true :
+        filterStatus === 'active' ? !emp.resignation_date :
+        !!emp.resignation_date;
 
-    // 사업장 필터
-    const matchesWorkplace = filterWorkplace === 'all' || (emp.workplace || '') === filterWorkplace;
+      // 사업장 필터
+      const matchesWorkplace = filterWorkplace === 'all' || (emp.workplace || '') === filterWorkplace;
 
-    return matchesText && matchesType && matchesStatus && matchesWorkplace;
-  });
+      return matchesText && matchesType && matchesStatus && matchesWorkplace;
+    });
+  }, [employees, searchQuery, filterType, filterStatus, filterWorkplace]);
 
   return (
     <div className="employee-management">
@@ -279,8 +323,16 @@ export default function EmployeeManagement() {
               <input type="text" name="name" value={formData.name} onChange={handleInputChange} style={inputStyle} required />
             </div>
             <div className="form-group">
-              <label>생년월일 (YYYY-MM-DD)*</label>
-              <input type="date" name="birth_date" value={formData.birth_date} onChange={handleInputChange} style={inputStyle} required />
+              <label>주민등록번호*</label>
+              <input 
+                type="text" 
+                name="resident_number" 
+                value={formData.resident_number} 
+                onChange={handleInputChange} 
+                style={inputStyle} 
+                placeholder="예: 900101-1234567" 
+                required 
+              />
             </div>
             <div className="form-group">
               <label>연락처</label>
@@ -314,10 +366,46 @@ export default function EmployeeManagement() {
               <label>8세~20세 자녀 수 (세액공제 대상)</label>
               <input type="number" min="0" name="children_count" value={formData.children_count} onChange={handleInputChange} style={inputStyle} placeholder="예: 0명" />
             </div>
-            <div className="form-group">
-              <label>거주지 주소</label>
-              <input type="text" name="address" value={formData.address} onChange={handleInputChange} style={inputStyle} placeholder="전체 주소 입력" />
+            <div style={{ gridColumn: '1 / -1', background: 'rgba(96, 165, 250, 0.05)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(96, 165, 250, 0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: formData.has_irp_account ? '16px' : '0' }}>
+                <input 
+                  type="checkbox" 
+                  id="has_irp_account"
+                  checked={formData.has_irp_account} 
+                  onChange={e => setFormData({ ...formData, has_irp_account: e.target.checked })} 
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <label htmlFor="has_irp_account" style={{ margin: 0, fontWeight: '600', color: '#60a5fa', cursor: 'pointer' }}>퇴직연금(IRP) 계좌 보유</label>
+              </div>
+              
+              {formData.has_irp_account && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div className="form-group">
+                    <label>IRP 운영기관</label>
+                    <input 
+                      type="text" 
+                      name="irp_provider"
+                      value={formData.irp_provider} 
+                      onChange={handleInputChange} 
+                      style={inputStyle} 
+                      placeholder="예: 삼성생명, 신한은행" 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>IRP 계좌번호</label>
+                    <input 
+                      type="text" 
+                      name="irp_account_number"
+                      value={formData.irp_account_number} 
+                      onChange={handleInputChange} 
+                      style={inputStyle} 
+                      placeholder="계좌번호 입력" 
+                    />
+                  </div>
+                </div>
+              )}
             </div>
+
             <div className="form-group">
               <label>계약 기본급 (원)*</label>
               <input type="text" name="base_salary" value={formData.base_salary} onChange={handleInputChange} style={inputStyle} placeholder="예: 3,000,000" required />
@@ -491,6 +579,7 @@ export default function EmployeeManagement() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px', fontSize: '14px' }}>
               <div style={detailRowStyle}><span>생년월일</span><strong>{detailEmp.birth_date}</strong></div>
+              <div style={detailRowStyle}><span>주민등록번호</span><strong>{detailEmp.resident_number ? detailEmp.resident_number.substring(0, 8) + '******' : '-'}</strong></div>
               <div style={detailRowStyle}><span>연락처</span><strong>{detailEmp.phone || '-'}</strong></div>
               <div style={detailRowStyle}><span>거주지</span><strong style={{textAlign:'right', wordBreak:'keep-all'}}>{detailEmp.address || '-'}</strong></div>
               <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', margin: '4px 0' }}></div>
@@ -501,6 +590,14 @@ export default function EmployeeManagement() {
               <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', margin: '4px 0' }}></div>
               <div style={detailRowStyle}><span>급여 수령 은행</span><strong>{detailEmp.bank_name || '-'}</strong></div>
               <div style={detailRowStyle}><span>수령 계좌번호</span><strong>{detailEmp.account_number || '-'}</strong></div>
+              <div style={{ borderTop: '1px dashed rgba(96, 165, 250, 0.2)', margin: '4px 0' }}></div>
+              <div style={detailRowStyle}><span>IRP 계좌 여부</span><strong style={{ color: detailEmp.has_irp_account ? '#60a5fa' : 'inherit' }}>{detailEmp.has_irp_account ? '보유' : '미보유'}</strong></div>
+              {detailEmp.has_irp_account && (
+                <>
+                  <div style={detailRowStyle}><span>IRP 기관</span><strong>{detailEmp.irp_provider || '-'}</strong></div>
+                  <div style={detailRowStyle}><span>IRP 계좌번호</span><strong>{detailEmp.irp_account_number || '-'}</strong></div>
+                </>
+              )}
               <div style={detailRowStyle}><span>부양가족 수</span><strong>{detailEmp.dependents || 1}명 (본인 포함)</strong></div>
               <div style={detailRowStyle}><span>계약 기본급</span><strong style={{ color: 'var(--primary-color)' }}>{Number(detailEmp.base_salary).toLocaleString()}원</strong></div>
               

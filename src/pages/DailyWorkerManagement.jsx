@@ -14,6 +14,7 @@ export default function DailyWorkerManagement() {
     updateWorkLog 
   } = useAppContext();
 
+  const [tempInputs, setTempInputs] = useState({});
   const [activeTab, setActiveTab] = useState('attendance'); 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showAddWorker, setShowAddWorker] = useState(false);
@@ -25,7 +26,13 @@ export default function DailyWorkerManagement() {
   const calculateDailyTax = (wage) => {
     const exemption = 150000;
     const taxable = Math.max(wage - exemption, 0);
-    const incomeTax = Math.floor(taxable * 0.06 * 0.45 / 10) * 10;
+    let incomeTax = Math.floor(taxable * 0.06 * 0.45 / 10) * 10;
+    
+    // 소액부징수 적용 (소득세 1,000원 미만 시 미징수)
+    if (incomeTax < 1000) {
+      incomeTax = 0;
+    }
+    
     const residentTax = Math.floor(incomeTax * 0.1 / 10) * 10;
     return { incomeTax, residentTax, netPay: wage - incomeTax - residentTax };
   };
@@ -53,6 +60,12 @@ export default function DailyWorkerManagement() {
 
   const handleUpdateLog = async (logId, field, value) => {
     await updateWorkLog(logId, { [field]: value });
+    // 업데이트 후 해당 임시 입력값 초기화
+    setTempInputs(prev => {
+      const next = { ...prev };
+      delete next[`${logId}-${field}`];
+      return next;
+    });
   };
 
   const handleAddWorker = async (e) => {
@@ -69,9 +82,16 @@ export default function DailyWorkerManagement() {
     const monthlyLogs = dailyWorkLogs.filter(log => log.work_date.startsWith(reportMonth));
     const summary = { totalWage: 0, totalTax: 0, totalNet: 0, totalCount: monthlyLogs.length, workerCount: new Set(monthlyLogs.map(l => l.worker_id)).size };
     const workerStats = {};
+
+    // O(1) 조회를 위한 Map 생성
+    const workerMap = dailyWorkers.reduce((acc, w) => {
+      acc[w.id] = w;
+      return acc;
+    }, {});
+
     monthlyLogs.forEach(log => {
       if (!workerStats[log.worker_id]) {
-        const w = dailyWorkers.find(work => work.id === log.worker_id);
+        const w = workerMap[log.worker_id];
         workerStats[log.worker_id] = { name: w ? w.name : '알수없음', days: 0, hours: 0, wage: 0, tax: 0, net: 0 };
       }
       const tax = calculateDailyTax(log.wage);
@@ -190,14 +210,35 @@ export default function DailyWorkerManagement() {
                       return (
                         <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                           <td style={tdStyle}><strong>{worker?.name}</strong></td>
-                          <td style={tdStyle}><input type="number" value={log.hours} onChange={e => handleUpdateLog(log.id, 'hours', e.target.value)} style={miniInputStyle} /></td>
+                          <td style={tdStyle}>
+                            <input 
+                              type="number" 
+                              value={tempInputs[`${log.id}-hours`] ?? log.hours} 
+                              onChange={e => setTempInputs({ ...tempInputs, [`${log.id}-hours`]: e.target.value })}
+                              onBlur={() => tempInputs[`${log.id}-hours`] !== undefined && handleUpdateLog(log.id, 'hours', tempInputs[`${log.id}-hours`])}
+                              onKeyDown={e => e.key === 'Enter' && tempInputs[`${log.id}-hours`] !== undefined && handleUpdateLog(log.id, 'hours', tempInputs[`${log.id}-hours`])}
+                              style={miniInputStyle} 
+                            />
+                          </td>
                           <td style={tdStyle}>
                             <input 
                               type="text" 
-                              value={Number(log.wage).toLocaleString()} 
+                              value={tempInputs[`${log.id}-wage`] !== undefined ? tempInputs[`${log.id}-wage`] : Number(log.wage).toLocaleString()} 
                               onChange={e => {
-                                const val = Number(e.target.value.replace(/[^0-9]/g, ''));
-                                handleUpdateLog(log.id, 'wage', val);
+                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                setTempInputs({ ...tempInputs, [`${log.id}-wage`]: Number(val).toLocaleString() });
+                              }}
+                              onBlur={() => {
+                                if (tempInputs[`${log.id}-wage`] !== undefined) {
+                                  const numericVal = Number(tempInputs[`${log.id}-wage`].replace(/,/g, ''));
+                                  handleUpdateLog(log.id, 'wage', numericVal);
+                                }
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && tempInputs[`${log.id}-wage`] !== undefined) {
+                                  const numericVal = Number(tempInputs[`${log.id}-wage`].replace(/,/g, ''));
+                                  handleUpdateLog(log.id, 'wage', numericVal);
+                                }
                               }}
                               style={{ ...miniInputStyle, width: '90px' }} 
                             />

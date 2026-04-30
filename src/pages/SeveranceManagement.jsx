@@ -1,545 +1,466 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { calculateRetirementTax } from '../utils/retirementTax';
+import { calculateProfessionalRetirementTax } from '../utils/retirementTax';
+import { getLeaveDetails } from '../utils/leaveCalculations';
 import { 
   Printer, Calculator, User, Calendar, ArrowRight, 
   CheckCircle, Info, Banknote, Save, History, 
-  Trash2, Download, ShieldCheck, TrendingUp
+  Trash2, Download, ShieldCheck, TrendingUp,
+  Plus, Minus, AlertCircle, FileText, Clock
 } from 'lucide-react';
+import { supabase } from '../utils/supabaseClient';
 
 export default function SeveranceManagement() {
-  const { employees, payrollArchives, company } = useAppContext();
+  const { employees, taxRates, company, leaveRecords } = useAppContext();
   
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [resignationDate, setResignationDate] = useState(new Date().toISOString().split('T')[0]);
   
-  // 수동 입력 필드들
-  const [manualWages, setManualWages] = useState([
-    { month: '', days: 30, amount: 0 },
-    { month: '', days: 31, amount: 0 },
-    { month: '', days: 30, amount: 0 },
+  // 정산 설정
+  const [serviceYearsMode, setServiceYearsMode] = useState('MONTH'); // MONTH or DAY
+  const [roundingPolicy, setRoundingPolicy] = useState('FLOOR_10');
+  const [isIrpTransfer, setIsIrpTransfer] = useState(false);
+  const [isExecutive, setIsExecutive] = useState(false);
+  const [executiveLimit, setExecutiveLimit] = useState(0);
+
+  // 급여 내역 (기본 1개 기간)
+  const [settlementPeriods, setSettlementPeriods] = useState([
+    { id: Date.now(), startDate: '', endDate: '', amount: 0, nonTaxable: 0 }
   ]);
-  const [bonusTotal, setBonusTotal] = useState(0);
-  const [annualLeaveAllowance, setAnnualLeaveAllowance] = useState(0);
-  
-  // 저장된 이력 관리 (localStorage 시뮬레이션)
-  const [history, setHistory] = useState(() => {
-    const saved = localStorage.getItem('severance_history');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [showHistory, setShowHistory] = useState(false);
+
+  // 미사용 연차수당 관련 상태
+  const [unusedLeaveDays, setUnusedLeaveDays] = useState(0);
+  const [dailyOrdinaryWage, setDailyOrdinaryWage] = useState(0);
+  const [unusedLeaveAllowance, setUnusedLeaveAllowance] = useState(0);
+
+  const [showAudit, setShowAudit] = useState(false);
 
   const selectedEmp = useMemo(() => employees.find(e => e.id === selectedEmpId), [employees, selectedEmpId]);
 
-  // 직원 선택 시 최근 3개월 데이터 자동 로드
+  // 직원 선택 시 기본 정보 세팅
   useEffect(() => {
     if (selectedEmp) {
-      const resDate = new Date(resignationDate);
-      const newWages = [];
+      // 1. 예상 퇴직금 자동 계산 (기본급 기준)
+      const rawSalary = String(selectedEmp.base_salary || '0').replace(/,/g, '');
+      const monthlyWage = Number(rawSalary) || 0;
       
-      for (let i = 1; i <= 3; i++) {
-        const d = new Date(resDate.getFullYear(), resDate.getMonth() - i + 1, 0);
-        const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        
-        const archive = payrollArchives.find(a => a.year === d.getFullYear() && a.month === d.getMonth() + 1);
-        const empData = archive?.data.find(d => d.emp.id === selectedEmp.id);
-        
-        newWages.push({
-          month: monthStr,
-          days: new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(),
-          amount: empData ? empData.taxableTotal : (Number(selectedEmp.base_salary) || 0)
-        });
-      }
-      setManualWages(newWages.reverse());
-    }
-  }, [selectedEmp, resignationDate, payrollArchives]);
+      const start = new Date(selectedEmp.join_date);
+      const end = new Date(resignationDate);
+      const totalDays = isNaN(start.getTime()) ? 0 : Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      
+      const estimatedAmount = totalDays >= 365 ? Math.floor((monthlyWage * (totalDays / 365)) / 10) * 10 : 0;
 
+      setSettlementPeriods([{
+        id: Date.now(),
+        startDate: selectedEmp.join_date,
+        endDate: resignationDate,
+        amount: estimatedAmount,
+        nonTaxable: 0
+      }]);
+
+      // 2. 미사용 연차수당 자동 계산
+      const currentYear = new Date(resignationDate).getFullYear();
+      const baseDate = new Date(currentYear, 11, 31);
+      const workHours = Number(selectedEmp.work_hours || 8);
+      
+      const { totalLeave } = getLeaveDetails(selectedEmp.join_date, baseDate, workHours);
+      const used = (leaveRecords || [])
+        .filter(r => r.employee_id === selectedEmp.id && new Date(r.leave_date).getFullYear() === currentYear)
+        .reduce((sum, r) => sum + Number(r.leave_days), 0);
+      
+      const remaining = Math.max(0, totalLeave - used);
+      
+      const extraPaysSum = (selectedEmp.extra_pays || []).reduce((sum, p) => sum + Number(String(p.amount).replace(/,/g, '') || 0), 0);
+      const totalFixedMonthly = monthlyWage + extraPaysSum;
+      const dailyWage = (totalFixedMonthly / (workHours * 6 * 4.345)) * workHours;
+      const allowance = Math.floor(remaining * dailyWage);
+
+      setUnusedLeaveDays(remaining);
+      setDailyOrdinaryWage(Math.floor(dailyWage));
+      setUnusedLeaveAllowance(allowance);
+
+      if (!selectedEmp.has_irp_account) {
+        setIsIrpTransfer(false);
+      }
+    }
+  }, [selectedEmpId, resignationDate, leaveRecords]);
+
+  // 실시간 계산 로직 (전체 합산 및 IRP 처리 정교화 + 검증)
   const calculation = useMemo(() => {
     if (!selectedEmp || !resignationDate) return null;
 
-    const start = new Date(selectedEmp.join_date);
-    const end = new Date(resignationDate);
-    
-    if (end < start) return { error: "퇴직일이 입사일보다 빠를 수 없습니다." };
+    // [검증] 기간 및 금액 유효성 체크
+    for (const p of settlementPeriods) {
+      if (!p.startDate || !p.endDate) return { error: '모든 기간의 시작일과 종료일을 입력해주세요.' };
+      if (new Date(p.startDate) > new Date(p.endDate)) return { error: '시작일이 종료일보다 늦을 수 없습니다.' };
+      if (Number(p.amount) < 0) return { error: '퇴직급여는 0원 이상이어야 합니다.' };
+    }
 
-    const totalDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    const isEligible = totalDays >= 365;
+    const totalRawAmount = settlementPeriods.reduce((sum, p) => sum + Number(p.amount), 0) + Number(unusedLeaveAllowance);
+    const totalNonTaxable = settlementPeriods.reduce((sum, p) => sum + Number(p.nonTaxable), 0);
+    let taxableRetirementIncome = totalRawAmount - totalNonTaxable;
 
-    const threeMonthWageTotal = manualWages.reduce((sum, w) => sum + Number(w.amount), 0);
-    const threeMonthDayTotal = manualWages.reduce((sum, w) => sum + Number(w.days), 0);
-    
-    const bonusPortion = (Number(bonusTotal) * 3) / 12;
-    const annualLeavePortion = (Number(annualLeaveAllowance) * 3) / 12;
+    let excessLaborIncome = 0;
+    if (isExecutive && executiveLimit > 0) {
+      if (taxableRetirementIncome > executiveLimit) {
+        excessLaborIncome = taxableRetirementIncome - executiveLimit;
+        taxableRetirementIncome = executiveLimit; 
+      }
+    }
 
-    const dailyAverageWage = (threeMonthWageTotal + bonusPortion + annualLeavePortion) / threeMonthDayTotal;
-    const preTaxSeverancePay = Math.floor(((dailyAverageWage * 30) * (totalDays / 365)) / 10) * 10;
+    const allStartDates = settlementPeriods.map(p => p.startDate).filter(Boolean);
+    const earliestStart = allStartDates.length > 0 ? allStartDates.sort()[0] : selectedEmp.join_date;
 
-    // 세금 계산 모듈 호출
-    const taxInfo = calculateRetirementTax(preTaxSeverancePay, selectedEmp.join_date, resignationDate);
+    const result = calculateProfessionalRetirementTax({
+      totalRetirementPay: taxableRetirementIncome,
+      joinDate: earliestStart,
+      resignationDate: resignationDate,
+      taxRates: taxRates,
+      roundingPolicy: roundingPolicy,
+      serviceYearsMode: serviceYearsMode
+    });
+
+    const safeIrpTransfer = selectedEmp?.has_irp_account && isIrpTransfer;
+    const withholdingTax = safeIrpTransfer ? 0 : result.totalTax;
+    const netPay = totalRawAmount - withholdingTax;
 
     return {
-      totalDays,
-      isEligible,
-      threeMonthWageTotal,
-      threeMonthDayTotal,
-      bonusPortion,
-      annualLeavePortion,
-      dailyAverageWage,
-      preTaxSeverancePay,
-      ...taxInfo
+      ...result,
+      totalRetirementPay: totalRawAmount,
+      totalNonTaxable: totalNonTaxable,
+      taxableRetirementIncome,
+      unusedLeaveAllowance: Number(unusedLeaveAllowance),
+      excessLaborIncome,
+      netPay,
+      actualWithholdingTax: withholdingTax,
+      deferredTax: safeIrpTransfer ? result.totalTax : 0,
+      isIrpTransfer: !!safeIrpTransfer,
+      error: null
     };
-  }, [selectedEmp, resignationDate, manualWages, bonusTotal, annualLeaveAllowance]);
+  }, [selectedEmp, resignationDate, settlementPeriods, isExecutive, executiveLimit, taxRates, roundingPolicy, isIrpTransfer, serviceYearsMode, unusedLeaveAllowance]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!calculation || calculation.error) return;
     
-    const newEntry = {
-      id: Date.now(),
-      empName: selectedEmp.name,
-      empId: selectedEmp.id,
-      resignationDate,
-      totalDays: calculation.totalDays,
-      preTax: calculation.preTaxSeverancePay,
-      tax: calculation.totalTax,
-      net: calculation.netSeverancePay,
-      createdAt: new Date().toISOString()
+    const calculationHash = `${selectedEmp.id}_${calculation.totalRetirementPay}_${resignationDate}`;
+
+    const payload = {
+      employee_id: selectedEmp.id,
+      calculation_hash: calculationHash,
+      service_years: calculation.serviceYears,
+      taxable_amount: calculation.taxableRetirementIncome,
+      excess_labor_income: calculation.excessLaborIncome,
+      input_json: { settlementPeriods, isExecutive, executiveLimit, isIrpTransfer, serviceYearsMode, roundingPolicy },
+      result_json: calculation,
+      audit_json: { auditTrail: calculation.auditTrail },
+      tax_version: 2024
     };
-    
-    const updatedHistory = [newEntry, ...history];
-    setHistory(updatedHistory);
-    localStorage.setItem('severance_history', JSON.stringify(updatedHistory));
-    alert('정산 내역이 저장되었습니다.');
+
+    const { error } = await supabase.from('retirement_tax_calculations').insert([payload]);
+    if (error) {
+      if (error.code === '23505') alert('이미 동일한 조건으로 저장된 정산 내역이 존재합니다.');
+      else alert('저장 실패: ' + error.message);
+    } else {
+      alert('정산 내역이 DB에 성공적으로 저장되었습니다.');
+    }
   };
 
-  const deleteHistory = (id) => {
-    const updated = history.filter(h => h.id !== id);
-    setHistory(updated);
-    localStorage.setItem('severance_history', JSON.stringify(updated));
+  const updatePeriod = (id, field, value) => {
+    setSettlementPeriods(settlementPeriods.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
-
-  const handlePrint = () => window.print();
 
   return (
     <div className="severance-management">
       <div className="no-print">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <header style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h2 style={{ fontSize: '26px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Banknote size={32} style={{ color: '#60a5fa' }} /> 퇴직금 정산 및 소득세 관리
+              <Banknote size={32} style={{ color: '#60a5fa' }} /> 전문 퇴직소득 정산 시스템
             </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>2024년 개정 세법이 적용된 퇴직소득세 자동 계산 시스템</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>국세청 표준 산식을 준수하는 기업용 정산 모듈</p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn btn-outline" onClick={() => setShowHistory(!showHistory)}>
-              <History size={18} style={{ marginRight: '8px' }} /> {showHistory ? '정산 화면으로' : '정산 이력 보기'}
+            <button className="btn btn-outline" onClick={() => window.print()} disabled={!calculation || calculation.error}>
+              <Printer size={18} /> 인쇄
             </button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={!calculation || !calculation.isEligible}>
-              <Save size={18} style={{ marginRight: '8px' }} /> 정산 결과 저장
-            </button>
-            <button className="btn btn-outline" onClick={handlePrint} disabled={!calculation || calculation.error}>
-              <Printer size={18} style={{ marginRight: '8px' }} /> 내역서 인쇄
+            <button className="btn btn-primary" onClick={handleSave} disabled={!calculation || calculation.error}>
+              <Save size={18} /> 결과 저장
             </button>
           </div>
-        </div>
+        </header>
 
-        {showHistory ? (
-          <div className="glass-card" style={{ animation: 'fadeIn 0.4s ease' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <History size={20} className="text-primary" /> 퇴직금 정산 기록
-            </h3>
-            <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                  <th style={{ padding: '12px' }}>정산일</th>
-                  <th style={{ padding: '12px' }}>근로자</th>
-                  <th style={{ padding: '12px' }}>퇴사일</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>퇴직급여(세전)</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>퇴직소득세</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>실수령액</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map(h => (
-                  <tr key={h.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '14px' }}>
-                    <td style={{ padding: '12px' }}>{new Date(h.createdAt).toLocaleDateString()}</td>
-                    <td style={{ padding: '12px', fontWeight: '500' }}>{h.empName}</td>
-                    <td style={{ padding: '12px' }}>{h.resignationDate}</td>
-                    <td style={{ padding: '12px', textAlign: 'right' }}>{h.preTax.toLocaleString()}원</td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#f87171' }}>{h.tax.toLocaleString()}원</td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#60a5fa', fontWeight: '600' }}>{h.net.toLocaleString()}원</td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <button onClick={() => deleteHistory(h.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {history.length === 0 && (
-                  <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>저장된 정산 내역이 없습니다.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '24px' }}>
-            {/* 왼쪽: 입력 섹션 */}
-            <div className="glass-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <User size={20} className="text-primary" />
-                <h3 style={{ fontSize: '18px', fontWeight: '600' }}>기초 정보 및 급여 입력</h3>
-              </div>
-              
-              <div className="form-group" style={{ marginBottom: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
+          <section className="glass-card">
+            <div style={sectionHeaderStyle}><User size={18} className="text-primary" /><h3>대상자 및 정산 기간</h3></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div className="form-group">
                 <label>대상 근로자</label>
-                <select 
-                  value={selectedEmpId} 
-                  onChange={e => setSelectedEmpId(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">직원을 선택하세요</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id} style={{ background: '#0f172a' }}>
-                      {emp.name} ({emp.resignation_date ? '퇴사자' : '재직자'})
-                    </option>
-                  ))}
+                <select value={selectedEmpId} onChange={e => setSelectedEmpId(e.target.value)} style={inputStyle}>
+                  <option value="">직원 선택</option>
+                  {employees.map(emp => <option key={emp.id} value={emp.id} style={{ background: '#0f172a' }}>{emp.name}</option>)}
                 </select>
               </div>
-
-              {selectedEmp && (
-                <div style={{ animation: 'fadeIn 0.3s ease' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                    <div className="form-group">
-                      <label>입사일</label>
-                      <input type="date" value={selectedEmp.join_date} readOnly style={{ ...inputStyle, opacity: 0.6 }} />
-                    </div>
-                    <div className="form-group">
-                      <label>퇴직(예정)일</label>
-                      <input type="date" value={resignationDate} onChange={e => setResignationDate(e.target.value)} style={inputStyle} />
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '24px', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px' }}>
-                    <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <TrendingUp size={16} /> 최근 3개월 급여 (세전)
-                    </h4>
-                    {manualWages.map((w, idx) => (
-                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 160px', gap: '12px', marginBottom: '10px', alignItems: 'center' }}>
-                        <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{w.month}</div>
-                        <div style={{ position: 'relative' }}>
-                          <input 
-                            type="number" 
-                            value={w.days} 
-                            onChange={e => {
-                              const newW = [...manualWages];
-                              newW[idx].days = Number(e.target.value);
-                              setManualWages(newW);
-                            }}
-                            style={{ ...inputStyle, padding: '8px', textAlign: 'center' }}
-                          />
-                          <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--text-secondary)' }}>일</span>
-                        </div>
-                        <div style={{ position: 'relative' }}>
-                          <input 
-                            type="text" 
-                            value={w.amount.toLocaleString()} 
-                            onChange={e => {
-                              const newW = [...manualWages];
-                              newW[idx].amount = Number(e.target.value.replace(/,/g, ''));
-                              setManualWages(newW);
-                            }}
-                            style={{ ...inputStyle, padding: '8px', textAlign: 'right', paddingRight: '30px' }}
-                          />
-                          <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--text-secondary)' }}>원</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div className="form-group">
-                      <label>연간 상여금 총액</label>
-                      <input 
-                        type="text" 
-                        value={bonusTotal.toLocaleString()} 
-                        onChange={e => setBonusTotal(Number(e.target.value.replace(/,/g, '')))}
-                        style={{ ...inputStyle, textAlign: 'right' }}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>미사용 연차수당</label>
-                      <input 
-                        type="text" 
-                        value={annualLeaveAllowance.toLocaleString()} 
-                        onChange={e => setAnnualLeaveAllowance(Number(e.target.value.replace(/,/g, '')))}
-                        style={{ ...inputStyle, textAlign: 'right' }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 오른쪽: 결과 및 세금 섹션 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div className="glass-card" style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  <Calculator size={20} className="text-primary" />
-                  <h3 style={{ fontSize: '18px', fontWeight: '600' }}>산출 결과 요약</h3>
-                </div>
-                
-                {!selectedEmp ? (
-                  <div style={{ height: '200px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
-                    <Calculator size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
-                    <p>직원을 선택하면 정산 결과가 표시됩니다.</p>
-                  </div>
-                ) : calculation?.error ? (
-                  <div className="alert alert-error">{calculation.error}</div>
-                ) : (
-                  <div style={{ animation: 'slideInRight 0.3s ease' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>재직일수</div>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{calculation.totalDays.toLocaleString()} <span style={{ fontSize: '14px' }}>일</span></div>
-                        <div style={{ fontSize: '11px', color: '#60a5fa', marginTop: '4px' }}>근속연수: {calculation.serviceYears}년</div>
-                      </div>
-                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>1일 평균임금</div>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{Math.floor(calculation.dailyAverageWage).toLocaleString()} <span style={{ fontSize: '14px' }}>원</span></div>
-                        <div style={{ fontSize: '11px', color: '#a78bfa', marginTop: '4px' }}>통상임금 기준 정산</div>
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: '24px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', padding: '0 8px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>퇴직급여 총액 (세전)</span>
-                        <strong style={{ fontSize: '20px', color: '#f3f4f6' }}>{calculation.preTaxSeverancePay.toLocaleString()} 원</strong>
-                      </div>
-                      
-                      <div style={{ background: 'rgba(248, 113, 113, 0.05)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(248, 113, 113, 0.1)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
-                          <span style={{ color: '#f87171' }}>퇴직소득세</span>
-                          <span>- {calculation.incomeTax.toLocaleString()} 원</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
-                          <span style={{ color: '#f87171' }}>지방소득세 (10%)</span>
-                          <span>- {calculation.residentTax.toLocaleString()} 원</span>
-                        </div>
-                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed rgba(248, 113, 113, 0.2)', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                          <span>공제 총액</span>
-                          <span style={{ color: '#f87171' }}>{calculation.totalTax.toLocaleString()} 원</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%)', padding: '24px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(96, 165, 250, 0.3)' }}>
-                      <div style={{ fontSize: '14px', color: '#93c5fd', marginBottom: '8px' }}>최종 예상 실수령액</div>
-                      <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#ffffff' }}>
-                        {calculation.netSeverancePay.toLocaleString()} <span style={{ fontSize: '20px' }}>원</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <div className="form-group">
+                <label>최종 퇴직일</label>
+                <input type="date" value={resignationDate} onChange={e => setResignationDate(e.target.value)} style={inputStyle} />
               </div>
-              
-              {calculation && calculation.isEligible && (
-                <div className="glass-card" style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <ShieldCheck className="text-success" size={24} />
-                    <div>
-                      <h4 style={{ fontWeight: '600', color: '#34d399', marginBottom: '4px' }}>법정 퇴직금 지급 대상</h4>
-                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                        해당 근로자는 계속근로기간이 1년 이상이므로 법정 퇴직금 지급 대상에 해당합니다. 
-                        평균임금 산정 시 연간 상여금과 연차수당의 3/12이 정확히 산입되었습니다.
-                      </p>
-                    </div>
+              <div className="form-group">
+                <label>근속연수 계산 방식</label>
+                <select value={serviceYearsMode} onChange={e => setServiceYearsMode(e.target.value)} style={inputStyle}>
+                  <option value="MONTH">월수 기준 (1개월 미만 절사)</option>
+                  <option value="DAY">일수 기준 (윤년 반영)</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>단수 조정</label>
+                <select value={roundingPolicy} onChange={e => setRoundingPolicy(e.target.value)} style={inputStyle}>
+                  <option value="FLOOR_10">10원 미만 절사</option>
+                  <option value="FLOOR_1">1원 미만 절사</option>
+                  <option value="FLOOR_100">100원 미만 절사</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={sectionHeaderStyle}><TrendingUp size={18} className="text-primary" /><h3>정산급여 및 비과세 (중간정산 포함)</h3><button onClick={() => setSettlementPeriods([...settlementPeriods, { id: Date.now(), startDate: '', endDate: '', amount: 0, nonTaxable: 0 }])} style={addPeriodBtnStyle}>+ 기간 추가</button></div>
+            {settlementPeriods.map((p, idx) => (
+              <div key={p.id} style={periodCardStyle}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa' }}>#기간 {idx + 1}</span>
+                  {settlementPeriods.length > 1 && <button onClick={() => setSettlementPeriods(settlementPeriods.filter(sp => sp.id !== p.id))} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Minus size={14} /></button>}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>시작일</label>
+                    <input type="date" value={p.startDate} onChange={e => updatePeriod(p.id, 'startDate', e.target.value)} style={smallInputStyle} />
                   </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>종료일</label>
+                    <input type="date" value={p.endDate} onChange={e => updatePeriod(p.id, 'endDate', e.target.value)} style={smallInputStyle} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>총 지급액</label>
+                    <div style={{ position: 'relative' }}><input type="text" value={Number(p.amount).toLocaleString()} onChange={e => updatePeriod(p.id, 'amount', Number(e.target.value.replace(/,/g, '')))} style={{ ...smallInputStyle, textAlign: 'right', paddingRight: '25px' }} /><span style={unitStyle}>원</span></div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>비과세액</label>
+                    <div style={{ position: 'relative' }}><input type="text" value={Number(p.nonTaxable).toLocaleString()} onChange={e => updatePeriod(p.id, 'nonTaxable', Number(e.target.value.replace(/,/g, '')))} style={{ ...smallInputStyle, textAlign: 'right', paddingRight: '25px' }} /><span style={unitStyle}>원</span></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div style={{ ...sectionHeaderStyle, marginTop: '24px' }}><Clock size={18} className="text-primary" /><h3>미사용 연차수당 정산</h3></div>
+            <div style={optionBoxStyle}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div className="form-group">
+                  <label style={{ fontSize: '12px' }}>잔여 연차 개수 (일)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type="number" 
+                      step="0.5"
+                      value={unusedLeaveDays} 
+                      onChange={e => {
+                        const rawValue = e.target.value;
+                        setUnusedLeaveDays(rawValue);
+                        const days = parseFloat(rawValue) || 0;
+                        setUnusedLeaveAllowance(Math.floor(days * dailyOrdinaryWage));
+                      }} 
+                      style={{ ...smallInputStyle, paddingRight: '25px' }} 
+                    />
+                    <span style={unitStyle}>일</span>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '12px' }}>최종 지급 수당 (연차수당)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type="text" 
+                      value={Number(unusedLeaveAllowance).toLocaleString()} 
+                      onChange={e => setUnusedLeaveAllowance(Number(e.target.value.replace(/,/g, '')))} 
+                      style={{ ...smallInputStyle, textAlign: 'right', paddingRight: '25px', fontWeight: 'bold', color: '#10b981' }} 
+                    />
+                    <span style={unitStyle}>원</span>
+                  </div>
+                </div>
+              </div>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                * 1일 통상임금 추정액: <strong>{dailyOrdinaryWage.toLocaleString()}원</strong> (기본급+제수당 기준)
+              </p>
+            </div>
+
+            <div style={{ ...sectionHeaderStyle, marginTop: '24px' }}><ShieldCheck size={18} className="text-primary" /><h3>임원 및 IRP 설정</h3></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div style={optionBoxStyle}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}><input type="checkbox" id="is_exec" checked={isExecutive} onChange={e => setIsExecutive(e.target.checked)} /><label htmlFor="is_exec" style={{ fontWeight: '600' }}>임원 여부</label></div>
+                {isExecutive && <div className="form-group"><label style={{ fontSize: '11px' }}>퇴직소득 한도액</label><input type="text" value={executiveLimit.toLocaleString()} onChange={e => setExecutiveLimit(Number(e.target.value.replace(/,/g, '')))} style={{ ...smallInputStyle, textAlign: 'right' }} /></div>}
+              </div>
+              <div style={{ ...optionBoxStyle, borderColor: selectedEmp?.has_irp_account ? 'rgba(96, 165, 250, 0.3)' : 'rgba(239, 68, 68, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}><input type="checkbox" id="irp" disabled={!selectedEmp?.has_irp_account} checked={isIrpTransfer} onChange={e => setIsIrpTransfer(e.target.checked)} /><label htmlFor="irp" style={{ fontWeight: '600', opacity: selectedEmp?.has_irp_account ? 1 : 0.5 }}>IRP 전액 이체</label></div>
+                {!selectedEmp?.has_irp_account ? <div style={{ display: 'flex', gap: '6px', alignItems: 'center', color: '#f87171', fontSize: '11px', background: 'rgba(248,113,113,0.1)', padding: '6px', borderRadius: '4px' }}><AlertCircle size={12} /><span>IRP 미가입: 기능을 사용할 수 없습니다.</span></div> : <p style={{ fontSize: '11px', color: '#60a5fa' }}>{selectedEmp.irp_provider} ({selectedEmp.irp_account_number})</p>}
+              </div>
+            </div>
+          </section>
+
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="glass-card" style={{ flex: 1 }}>
+              <div style={sectionHeaderStyle}><Calculator size={18} className="text-primary" /><h3>정산 결과 요약</h3><button onClick={() => setShowAudit(!showAudit)} style={auditBtnStyle}>{showAudit ? '요약 보기' : '계산 상세(Audit) 보기'}</button></div>
+              {!calculation ? <div style={emptyResultStyle}>직원을 선택해 주세요.</div> : calculation.error ? <div style={{ ...emptyResultStyle, color: '#f87171', flexDirection: 'column', gap: '12px' }}><AlertCircle size={40} /><span>{calculation.error}</span></div> : showAudit ? (
+                <div style={auditContainerStyle}><h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px', color: '#60a5fa' }}>국세청 표준 산식 추적 (Audit Trail)</h4>{calculation.auditTrail.map((line, i) => (<div key={i} style={{ fontSize: '13px', marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', whiteSpace: 'pre-wrap', lineHeight: '1.6', borderLeft: '3px solid #60a5fa' }}>{line}</div>))}</div>
+              ) : (
+                <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                  <div style={{ ...summaryRowStyle, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', marginBottom: '16px' }}><span style={{ color: '#93c5fd' }}>확정 근속연수</span><strong style={{ fontSize: '18px', color: '#93c5fd' }}>{calculation.serviceYears} 년</strong></div>
+                  <div style={summaryRowStyle}><span>총 퇴직급여</span><strong>{calculation.totalRetirementPay.toLocaleString()} 원</strong></div>
+                  <div style={{ ...summaryRowStyle, fontSize: '13px', color: '#10b981' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={14} /> 미사용 연차수당</span>
+                    <span>{calculation.unusedLeaveAllowance.toLocaleString()} 원</span>
+                  </div>
+                  {calculation.totalNonTaxable > 0 && <div style={summaryRowStyle}><span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>└ 비과세액</span><span style={{ fontSize: '13px' }}>- {calculation.totalNonTaxable.toLocaleString()} 원</span></div>}
+                  {calculation.excessLaborIncome > 0 && <div style={summaryRowStyle}><span style={{ fontSize: '13px', color: '#fbbf24' }}>└ 임원 한도초과 (근로소득)</span><span style={{ fontSize: '13px', color: '#fbbf24' }}>{calculation.excessLaborIncome.toLocaleString()} 원</span></div>}
+                  <div style={{ margin: '20px 0', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span style={{ color: 'var(--text-secondary)' }}>퇴직소득세 (국세)</span><span>{calculation.incomeTax.toLocaleString()} 원</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span style={{ color: 'var(--text-secondary)' }}>지방소득세 (10%)</span><span>{calculation.residentTax.toLocaleString()} 원</span></div>
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '12px', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span>세액 합계</span><span style={{ color: '#f87171' }}>{calculation.totalTax.toLocaleString()} 원</span></div>
+                  </div>
+                  <div style={resultHighlightStyle}><div style={{ fontSize: '14px', color: '#93c5fd', marginBottom: '4px' }}>{calculation.isIrpTransfer ? 'IRP 이체액 (과세이연)' : '실수령액 (원천징수 후)' }</div><div style={{ fontSize: '32px', fontWeight: 'bold' }}>{calculation.netPay.toLocaleString()} <span style={{ fontSize: '18px' }}>원</span></div>{calculation.isIrpTransfer && <div style={{ fontSize: '12px', color: '#34d399', marginTop: '8px' }}>* IRP 계좌로 전액 이체되어 실 원천징수 세액은 0원입니다.</div>}</div>
                 </div>
               )}
             </div>
-          </div>
-        )}
+            <div className="glass-card" style={{ background: 'rgba(96, 165, 250, 0.05)', border: '1px solid rgba(96, 165, 250, 0.2)' }}><div style={{ display: 'flex', gap: '12px' }}><Info size={24} style={{ color: '#60a5fa' }} /><div><h4 style={{ fontWeight: 'bold', color: '#60a5fa', marginBottom: '4px' }}>정산 가이드</h4><p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>본 시스템은 2024년 최신 개정 세법을 반영합니다. 산출 결과 옆의 'Audit 보기'를 통해 단계별 환산 산식을 국세청 홈택스 결과와 대조해 보실 수 있습니다.</p></div></div></div>
+          </section>
+        </div>
       </div>
 
-      {/* 인쇄 레이아웃 (기존보다 강화됨) */}
-      {selectedEmp && calculation && !calculation.error && (
-        <div className="print-only" style={{ color: '#000', padding: '40px', background: '#fff', minHeight: '100vh' }}>
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h1 style={{ fontSize: '32px', fontWeight: 'bold', textDecoration: 'underline', marginBottom: '10px' }}>퇴직금 정산 상세 내역서</h1>
-          </div>
+      {calculation && !calculation.error && (
+        <div className="print-only" style={printReportStyle}>
+          <h1 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '28px', marginBottom: '10px' }}>퇴직소득 정산 내역서</h1>
+          <p style={{ textAlign: 'center', fontSize: '14px', color: '#666', marginBottom: '30px' }}>(NTS 국세청 표준 산식 적용)</p>
           
-          <div style={{ marginBottom: '25px' }}>
-            <div style={printBoxStyle}>
-              <h4 style={printLabelStyle}>1. 근로자 인적사항</h4>
-              <table style={{ width: '100%', fontSize: '14px' }}>
-                <tbody>
-                  <tr>
-                    <td style={{ width: '80px', padding: '4px' }}>성 명 :</td><td>{selectedEmp.name}</td>
-                    <td style={{ width: '80px', padding: '4px' }}>입사일 :</td><td>{selectedEmp.join_date}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '4px' }}>퇴사일 :</td><td>{resignationDate}</td>
-                    <td style={{ padding: '4px' }}>재직일수 :</td><td>{calculation.totalDays} 일 (약 {calculation.serviceYears}년)</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <div style={{ textAlign: 'right', marginBottom: '10px' }}>출력일: {new Date().toLocaleDateString()}</div>
+          
+          <table style={printTableStyle}>
+            <tbody>
+              <tr><th style={printThStyle}>소속</th><td style={printTdStyle}>{selectedEmp?.workplace}</td><th style={printThStyle}>직위</th><td style={printTdStyle}>{selectedEmp?.position || '-'}</td></tr>
+              <tr><th style={printThStyle}>성명</th><td style={printTdStyle}>{selectedEmp?.name}</td><th style={printThStyle}>사번</th><td style={printTdStyle}>{selectedEmp?.employee_id || '-'}</td></tr>
+              <tr><th style={printThStyle}>입사일</th><td style={printTdStyle}>{selectedEmp?.join_date}</td><th style={printThStyle}>퇴사일</th><td style={printTdStyle}>{resignationDate}</td></tr>
+              <tr><th style={printThStyle}>근속연수</th><td style={printTdStyle} colSpan="3">{calculation.serviceYears}년 (산정방식: {serviceYearsMode === 'MONTH' ? '월수 기준' : '일수 기준'})</td></tr>
+            </tbody>
+          </table>
 
-          <div style={{ marginBottom: '25px' }}>
-            <h4 style={printLabelStyle}>2. 평균임금 산정 상세 (최근 3개월)</h4>
-            <table style={printTableStyle}>
-              <thead>
-                <tr style={{ background: '#f8f9fa' }}>
-                  <th style={printThStyle}>산정 기간</th>
-                  <th style={printThStyle}>기간일수</th>
-                  <th style={printThStyle}>기본급 및 제수당</th>
+          <h3 style={{ marginTop: '30px', fontSize: '16px', borderLeft: '4px solid #000', paddingLeft: '10px' }}>1. 퇴직급여 지급 상세</h3>
+          <table style={printTableStyle}>
+            <thead>
+              <tr>
+                <th style={printThStyle}>구분</th>
+                <th style={printThStyle}>기간</th>
+                <th style={printThStyle}>총 지급액</th>
+                <th style={printThStyle}>비과세액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {settlementPeriods.map((p, i) => (
+                <tr key={i}>
+                  <td style={printTdStyle}>기간 {i+1}</td>
+                  <td style={printTdStyle}>{p.startDate} ~ {p.endDate}</td>
+                  <td style={printTdStyle}>{Number(p.amount).toLocaleString()}원</td>
+                  <td style={printTdStyle}>{Number(p.nonTaxable).toLocaleString()}원</td>
                 </tr>
-              </thead>
-              <tbody>
-                {manualWages.map((w, idx) => (
-                  <tr key={idx}>
-                    <td style={{ ...printTdStyle, textAlign: 'center' }}>{w.month}</td>
-                    <td style={{ ...printTdStyle, textAlign: 'center' }}>{w.days} 일</td>
-                    <td style={printTdStyle}>{w.amount.toLocaleString()} 원</td>
-                  </tr>
-                ))}
-                <tr style={{ fontWeight: 'bold', background: '#f8f9fa' }}>
-                  <td style={{ ...printTdStyle, textAlign: 'center' }}>합 계 (A)</td>
-                  <td style={{ ...printTdStyle, textAlign: 'center' }}>{calculation.threeMonthDayTotal} 일</td>
-                  <td style={printTdStyle}>{calculation.threeMonthWageTotal.toLocaleString()} 원</td>
-                </tr>
-              </tbody>
-            </table>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
-              <div style={{ border: '1px solid #000', padding: '10px', fontSize: '12px' }}>
-                <strong>상여금 가산액 (B):</strong> {calculation.bonusPortion.toLocaleString()} 원<br/>
-                (연간 상여 {bonusTotal.toLocaleString()}원 × 3/12)
-              </div>
-              <div style={{ border: '1px solid #000', padding: '10px', fontSize: '12px' }}>
-                <strong>연차수당 가산액 (C):</strong> {calculation.annualLeavePortion.toLocaleString()} 원<br/>
-                (최근 1년 연차수당 {annualLeaveAllowance.toLocaleString()}원 × 3/12)
-              </div>
-            </div>
-            
-            <div style={{ marginTop: '10px', padding: '12px', border: '2px solid #000', textAlign: 'center', background: '#f8f9fa' }}>
-              <span style={{ fontSize: '14px' }}>1일 평균임금 = (A + B + C) / {calculation.threeMonthDayTotal}일 = </span>
-              <strong style={{ fontSize: '18px' }}>{Math.floor(calculation.dailyAverageWage).toLocaleString()} 원</strong>
-            </div>
-          </div>
+              ))}
+              <tr>
+                <td style={printTdStyle}>기타</td>
+                <td style={printTdStyle}>미사용 연차수당 정산 (n/a)</td>
+                <td style={printTdStyle}>{calculation.unusedLeaveAllowance.toLocaleString()}원</td>
+                <td style={printTdStyle}>0원</td>
+              </tr>
+              <tr style={{ fontWeight: 'bold', background: '#f9f9f9' }}>
+                <td style={printTdStyle} colSpan="2">합계</td>
+                <td style={printTdStyle}>{calculation.totalRetirementPay.toLocaleString()}원</td>
+                <td style={printTdStyle}>{calculation.totalNonTaxable.toLocaleString()}원</td>
+              </tr>
+            </tbody>
+          </table>
 
-          <div style={{ marginBottom: '30px' }}>
-            <h4 style={printLabelStyle}>3. 퇴직금 및 세금 정산 결과</h4>
-            <table style={printTableStyle}>
-              <tbody>
+          <h3 style={{ marginTop: '30px', fontSize: '16px', borderLeft: '4px solid #000', paddingLeft: '10px' }}>2. 세액 산출 및 차감 내역</h3>
+          <table style={printTableStyle}>
+            <tbody>
+              <tr>
+                <td style={{ ...printTdStyle, textAlign: 'left', background: '#f5f5f5', width: '40%' }}>퇴직소득금액 (한도 내)</td>
+                <td style={{ ...printTdStyle, textAlign: 'right' }}>{calculation.taxableRetirementIncome.toLocaleString()}원</td>
+              </tr>
+              {calculation.excessLaborIncome > 0 && (
                 <tr>
-                  <td style={{ ...printTdStyle, textAlign: 'left', width: '250px' }}>① 퇴직급여 총액 (세전)</td>
-                  <td style={printTdStyle}><strong>{calculation.preTaxSeverancePay.toLocaleString()} 원</strong></td>
+                  <td style={{ ...printTdStyle, textAlign: 'left', color: '#d97706' }}>임원 퇴직금 한도초과액 (근로소득)</td>
+                  <td style={{ ...printTdStyle, textAlign: 'right', color: '#d97706' }}>{calculation.excessLaborIncome.toLocaleString()}원</td>
                 </tr>
-                <tr>
-                  <td style={{ ...printTdStyle, textAlign: 'left' }}>② 퇴직소득세</td>
-                  <td style={printTdStyle}>- {calculation.incomeTax.toLocaleString()} 원</td>
-                </tr>
-                <tr>
-                  <td style={{ ...printTdStyle, textAlign: 'left' }}>③ 지방소득세</td>
-                  <td style={printTdStyle}>- {calculation.residentTax.toLocaleString()} 원</td>
-                </tr>
-                <tr style={{ background: '#f8f9fa', fontSize: '18px' }}>
-                  <td style={{ ...printTdStyle, textAlign: 'left' }}><strong>④ 차감지급액 (실수령액)</strong></td>
-                  <td style={printTdStyle}><strong>{calculation.netSeverancePay.toLocaleString()} 원</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+              )}
+              <tr>
+                <td style={{ ...printTdStyle, textAlign: 'left' }}>근속연수 공제</td>
+                <td style={{ ...printTdStyle, textAlign: 'right' }}>- {calculation.serviceYearDeduction.toLocaleString()}원</td>
+              </tr>
+              <tr>
+                <td style={{ ...printTdStyle, textAlign: 'left' }}>퇴직소득세 (국세)</td>
+                <td style={{ ...printTdStyle, textAlign: 'right' }}>{calculation.incomeTax.toLocaleString()}원</td>
+              </tr>
+              <tr>
+                <td style={{ ...printTdStyle, textAlign: 'left' }}>지방소득세 (10%)</td>
+                <td style={{ ...printTdStyle, textAlign: 'right' }}>{calculation.residentTax.toLocaleString()}원</td>
+              </tr>
+              <tr style={{ fontWeight: 'bold', fontSize: '16px' }}>
+                <td style={{ ...printTdStyle, textAlign: 'left', background: '#eee' }}>차감지급액 (실수령액)</td>
+                <td style={{ ...printTdStyle, textAlign: 'right', background: '#eee' }}>
+                  {calculation.netPay.toLocaleString()}원
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-          <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-around' }}>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ marginBottom: '40px' }}>위 정산 금액을 정히 영수함</p>
-              <p>202__년 __월 __일</p>
-              <p style={{ marginTop: '20px', fontSize: '18px' }}>성명: ________________ (인)</p>
+          {calculation.isIrpTransfer && (
+            <div style={{ marginTop: '15px', padding: '15px', border: '1px solid #000', background: '#f9f9f9' }}>
+              <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>※ IRP(개인형 퇴직연금) 과세이연 안내</p>
+              <p style={{ fontSize: '13px', lineHeight: '1.4' }}>
+                본 퇴직급여는 IRP 계좌로 전액 이체됨에 따라 퇴직소득세의 원천징수가 유예(이연)되었습니다.<br/>
+                - 이체기관: {selectedEmp.irp_provider}<br/>
+                - 계좌번호: {selectedEmp.irp_account_number}<br/>
+                - 이연세액: {calculation.totalTax.toLocaleString()}원
+              </p>
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ marginBottom: '60px' }}>사업주 귀하</p>
-              <p style={{ fontSize: '18px' }}>{company.name}</p>
+          )}
+
+          <div style={{ marginTop: '80px', textAlign: 'center' }}>
+            <p style={{ fontSize: '16px' }}>위 금액을 퇴직소득 정산금으로 정히 영수함</p>
+            <p style={{ marginTop: '40px' }}>202__년 __월 __일</p>
+            <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'center', gap: '50px', fontSize: '18px' }}>
+              <span>성명 : {selectedEmp.name} (인)</span>
             </div>
+            <div style={{ marginTop: '80px', fontSize: '26px', fontWeight: 'bold' }}>{company?.name || '(주)회사'} 귀하</div>
           </div>
         </div>
       )}
 
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideInRight { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        
-        .severance-management label {
-          display: block;
-          font-size: 13px;
-          color: var(--text-secondary);
-          margin-bottom: 8px;
-          font-weight: 500;
-        }
-
-        .btn-success {
-          background: #10b981;
-          color: white;
-        }
-
-        @media print {
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
-          body { background: #fff !important; }
-        }
-        
+        .severance-management h3 { font-size: 16px; margin: 0; }
+        .form-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; } }
         .print-only { display: none; }
       `}</style>
     </div>
   );
 }
 
-const inputStyle = {
-  width: '100%',
-  padding: '12px 14px',
-  borderRadius: '10px',
-  background: 'rgba(0,0,0,0.25)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  color: 'white',
-  outline: 'none',
-  fontSize: '14px',
-  transition: 'all 0.2s ease'
-};
-
-const printBoxStyle = {
-  border: '1px solid #000',
-  padding: '15px',
-  lineHeight: '1.8'
-};
-
-const printLabelStyle = {
-  fontSize: '16px',
-  fontWeight: 'bold',
-  marginBottom: '10px',
-  borderBottom: '1px solid #000',
-  paddingBottom: '4px'
-};
-
-const printTableStyle = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  marginTop: '10px'
-};
-
-const printThStyle = {
-  border: '1px solid #000',
-  padding: '10px',
-  fontSize: '13px',
-  textAlign: 'center'
-};
-
-const printTdStyle = {
-  border: '1px solid #000',
-  padding: '10px',
-  fontSize: '13px',
-  textAlign: 'right'
-};
+const sectionHeaderStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px' };
+const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none', fontSize: '14px' };
+const smallInputStyle = { ...inputStyle, padding: '8px 10px', fontSize: '13px' };
+const addPeriodBtnStyle = { marginLeft: 'auto', padding: '4px 10px', fontSize: '12px', background: 'rgba(96, 165, 250, 0.1)', color: '#60a5fa', border: '1px solid #60a5fa', borderRadius: '6px', cursor: 'pointer' };
+const periodCardStyle = { background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '12px' };
+const unitStyle = { position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)' };
+const optionBoxStyle = { background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' };
+const auditBtnStyle = { marginLeft: 'auto', padding: '4px 8px', fontSize: '11px', color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' };
+const emptyResultStyle = { height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' };
+const summaryRowStyle = { display: 'flex', justifyContent: 'space-between', marginBottom: '10px' };
+const resultHighlightStyle = { background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.1) 100%)', padding: '24px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(59, 130, 246, 0.3)', marginTop: '20px' };
+const auditContainerStyle = { background: '#000', padding: '16px', borderRadius: '8px', maxHeight: '400px', overflowY: 'auto', color: '#34d399', fontFamily: 'monospace' };
+const printReportStyle = { padding: '40px', color: '#000', background: '#fff' };
+const printTableStyle = { width: '100%', borderCollapse: 'collapse', marginTop: '20px' };
+const printThStyle = { border: '1px solid #000', padding: '10px', background: '#f5f5f5', textAlign: 'center', fontSize: '14px' };
+const printTdStyle = { border: '1px solid #000', padding: '10px', textAlign: 'center', fontSize: '14px' };

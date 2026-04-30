@@ -33,7 +33,7 @@ export default function PayrollManagement() {
       return {
         emp,
         earnings: [
-          { id: 'base', name: '기본급 (계산됨)', amount: p.basePay, isFixed: true, isTaxFree: false },
+          { id: 'base', name: '기본급', amount: p.basePay, isFixed: true, isTaxFree: false },
           ...p.extraPays.map((ep, i) => ({ id: `ep_${i}`, name: ep.name, amount: ep.amount, isTaxFree: !!ep.isTaxFree }))
         ],
         deductions: [
@@ -420,7 +420,18 @@ export default function PayrollManagement() {
                   >
                     <td style={tdStyle}>
                       <strong>{data.emp.name}</strong>
-                      {data.emp.resignation_date && <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--danger-color)' }}>퇴사</span>}
+                      {data.emp.resignation_date && (
+                        <span style={{ 
+                          marginLeft: '8px', 
+                          fontSize: '11px', 
+                          padding: '2px 6px', 
+                          background: 'rgba(239, 68, 68, 0.15)', 
+                          color: '#ef4444', 
+                          border: '1px solid rgba(239, 68, 68, 0.3)', 
+                          borderRadius: '4px',
+                          fontWeight: 'bold'
+                        }}>퇴사</span>
+                      )}
                     </td>
                     <td style={tdStyle}>{data.emp.employment_type}</td>
                     <td style={tdStyle}>{data.taxableTotal.toLocaleString()}원</td>
@@ -473,7 +484,6 @@ export default function PayrollManagement() {
                             }}
                             className="inline-input-num"
                             placeholder="0"
-                            style={{ width: '70px' }}
                           />
                           <span style={{ fontSize: '12px', marginRight: '4px' }}>원</span>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '10px', cursor: 'pointer', opacity: e.isFixed ? 0.3 : 1 }}>
@@ -678,7 +688,7 @@ export default function PayrollManagement() {
           font-size: 14px;
           padding: 4px;
           border-radius: 4px;
-          width: 80px;
+          width: 100px;
           text-align: right;
           outline: none;
           transition: border 0.2s;

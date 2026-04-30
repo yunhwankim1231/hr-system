@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { calculatePayroll } from '../utils/payrollCalculations';
 import { calculateAnnualLeave } from '../utils/leaveCalculations';
@@ -15,6 +15,11 @@ export default function Payslips() {
   const today = new Date();
   const [targetYear, setTargetYear] = useState(today.getFullYear());
   const [targetMonth, setTargetMonth] = useState(today.getMonth() + 1);
+
+  // [추가] 필터 및 기간 변경 시 체크박스 선택 초기화
+  useEffect(() => {
+    setCheckedIds(new Set());
+  }, [searchQuery, filterWorkplace, targetYear, targetMonth]);
 
   const targetMonthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
 
@@ -60,18 +65,32 @@ export default function Payslips() {
 
   const currentData = selectedEmp ? getEmpPayroll(selectedEmp) : null;
 
-  const workplaceList = [...new Set(employees.map(e => e.workplace).filter(Boolean))];
+  // [최적화 1] 사업장 목록 메모이제이션
+  const workplaceList = useMemo(() => {
+    return [...new Set(employees.map(e => e.workplace).filter(Boolean))];
+  }, [employees]);
 
-  const filteredEmployees = employees.filter(emp => {
-    const q = searchQuery.toLowerCase();
-    const matchesText = !q || 
-      emp.name.toLowerCase().includes(q) || 
-      (emp.phone && emp.phone.includes(q));
-    
-    const matchesWorkplace = filterWorkplace === 'all' || (emp.workplace || '') === filterWorkplace;
-    
-    return matchesText && matchesWorkplace;
-  });
+  // [최적화 2] 직원 필터링 메모이제이션
+  const filteredEmployees = useMemo(() => {
+    return employees.filter(emp => {
+      const q = searchQuery.toLowerCase();
+      const matchesText = !q || 
+        emp.name.toLowerCase().includes(q) || 
+        (emp.phone && emp.phone.includes(q));
+      
+      const matchesWorkplace = filterWorkplace === 'all' || (emp.workplace || '') === filterWorkplace;
+      
+      return matchesText && matchesWorkplace;
+    });
+  }, [employees, searchQuery, filterWorkplace]);
+
+  // [최적화 3] 인쇄용 데이터 미리 계산
+  const printDataList = useMemo(() => {
+    if (checkedIds.size === 0) return [];
+    return Array.from(checkedIds)
+      .map(id => getEmpPayroll(id))
+      .filter(Boolean);
+  }, [checkedIds, employees, targetYear, targetMonth, payrollArchives]);
 
   const handleCheckAll = (e) => {
     if (e.target.checked) {
@@ -204,7 +223,7 @@ export default function Payslips() {
                 />
               </div>
               {workplaceList.length > 0 && (
-                <select value={filterWorkplace} onChange={e => setFilterWorkplace(e.target.value)} style={inputStyle}>
+                <select value={filterWorkplace} onChange={e => setFilterWorkplace(e.target.value)} style={{ ...inputStyle, paddingLeft: '12px' }}>
                   <option value="all" style={{ background: '#0f172a' }}>사업장 전체</option>
                   {workplaceList.map(wp => <option key={wp} value={wp} style={{ background: '#0f172a' }}>{wp}</option>)}
                 </select>
@@ -260,10 +279,11 @@ export default function Payslips() {
       </div>
 
       <div className="print-only">
-        {checkedIds.size > 0 ? Array.from(checkedIds).map(id => {
-          const data = getEmpPayroll(id);
-          return data ? <div key={id} style={{ pageBreakAfter: 'always' }}>{renderPayslipContent(data)}</div> : null;
-        }) : currentData && renderPayslipContent(currentData)}
+        {printDataList.length > 0 ? printDataList.map(data => (
+          <div key={data.emp.id} style={{ pageBreakAfter: 'always' }}>
+            {renderPayslipContent(data)}
+          </div>
+        )) : currentData && renderPayslipContent(currentData)}
       </div>
     </div>
   );

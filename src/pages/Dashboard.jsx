@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { calculatePayroll } from '../utils/payrollCalculations';
-import { Users, CreditCard, ShieldCheck, Bell, Settings, X } from 'lucide-react';
+import { getLeaveDetails } from '../utils/leaveCalculations';
+import { Users, CreditCard, ShieldCheck, Bell, Settings, X, Banknote, Clock, TrendingDown } from 'lucide-react';
 import DashboardCalendar from '../components/DashboardCalendar';
 
 export default function Dashboard() {
-  const { company, employees, insuranceRates, setInsuranceRates } = useAppContext();
+  const { company, employees, insuranceRates, setInsuranceRates, leaveRecords } = useAppContext();
   
   const [showRateModal, setShowRateModal] = useState(false);
   const [editingRates, setEditingRates] = useState({});
@@ -14,18 +15,62 @@ export default function Dashboard() {
   const dashboardData = useMemo(() => {
     let totalSalaries = 0;
     let totalInsurances = 0;
+    let totalAccruedLeave = 0;
+    let totalUsedLeave = 0;
+    let totalLeaveDebt = 0;
+    let totalSeverancePay = 0;
     let notifications = [];
 
     const today = new Date();
-    const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const currentYear = today.getFullYear();
+    const currentMonthStr = `${currentYear}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const baseDateForLeave = new Date(currentYear, 11, 31); // 연말 기준 연차 현황
+
+    // [최적화] 연차 기록 그룹화
+    const groupedLeave = {};
+    (leaveRecords || []).forEach(r => {
+      if (new Date(r.leave_date).getFullYear() === currentYear) {
+        if (!groupedLeave[r.employee_id]) groupedLeave[r.employee_id] = [];
+        groupedLeave[r.employee_id].push(r);
+      }
+    });
 
     employees.forEach(emp => {
-      // 퇴사자는 통계에서 제외할지 결정 (일단 이번달 급여가 나갈 수 있으므로 포함하거나, 당월 퇴사자만 포함 등. 우선 모두 계산해봄)
       const payroll = calculatePayroll({ employee: emp, company, rates: insuranceRates, paymentMonth: currentMonthStr });
       
       totalSalaries += payroll.taxableTotal;
-      // 회사 부담금 포함 4대보험 (편의상 근로자부담금 * 2 + 산재보험으로 단순화 계산)
-      totalInsurances += (payroll.totalDeductions * 2) + payroll.workersComp;
+      
+      // 회사 부담금 포함 4대보험 (소득세 제외한 4대보험 근로자부담금 * 2 + 산재보험)
+      const employeeInsurance = (payroll.nationalPension || 0) + (payroll.healthInsurance || 0) + (payroll.longTermCare || 0) + (payroll.employmentInsurance || 0);
+      totalInsurances += (employeeInsurance * 2) + (payroll.workersComp || 0);
+
+      // --- [1] 연차 통계 및 부채 계산 ---
+      const workHours = Number(emp.work_hours || 8);
+      const { totalLeave } = getLeaveDetails(emp.join_date, baseDateForLeave, workHours);
+      const empUsed = (groupedLeave[emp.id] || []).reduce((sum, r) => sum + Number(r.leave_days), 0);
+      const remaining = totalLeave - empUsed;
+      
+      const baseSalary = Number(emp.base_salary || 0);
+      const extraPaysSum = (emp.extra_pays || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const totalFixedMonthly = baseSalary + extraPaysSum;
+      const dailyWage = (totalFixedMonthly / (workHours * 6 * 4.345)) * workHours;
+      const allowance = remaining > 0 ? Math.floor(remaining * dailyWage) : 0;
+
+      totalAccruedLeave += totalLeave;
+      totalUsedLeave += empUsed;
+      totalLeaveDebt += allowance;
+
+      // --- [2] 퇴직금 추계액 계산 (오늘 기준) ---
+      const joinDate = new Date(emp.join_date);
+      const diffTime = today.getTime() - joinDate.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays >= 365 && !emp.resignation_date) {
+        // 법정 퇴직금: (평균임금/통상임금) * (근속일수 / 365) * 30일분 (여기선 요청하신대로 단순화 산식 사용)
+        // 공식: (월 통상임금) * (총 근속일수 / 365)
+        const severanceEstimate = totalFixedMonthly * (diffDays / 365);
+        totalSeverancePay += Math.floor(severanceEstimate);
+      }
 
       if (!emp.resignation_date) {
         // 생일 알림 (재직자만)
@@ -42,14 +87,14 @@ export default function Dashboard() {
           }
         }
 
-        // 1. 당월 신규 입사자 알림
+        // 당월 신규 입사자 알림
         const jDate = new Date(emp.join_date);
         if (jDate.getMonth() === today.getMonth() && jDate.getFullYear() === today.getFullYear()) {
           notifications.push({ id: `j-${emp.id}`, text: `👏 이번 달 신규 입사자: ${emp.name}님 (${emp.join_date})`, type: 'info' });
         }
       }
 
-      // 2. 당월 퇴사자 알림 (퇴사 처리된 인원 포함)
+      // 당월 퇴사자 알림
       if (emp.resignation_date) {
         const rDate = new Date(emp.resignation_date);
         if (rDate.getMonth() === today.getMonth() && rDate.getFullYear() === today.getFullYear()) {
@@ -59,7 +104,6 @@ export default function Dashboard() {
 
       // 3. 국민연금 납부 제외 대상자 알림 (만 60세 도달)
       if (!emp.resignation_date) {
-        const payroll = calculatePayroll({ employee: emp, company, rates: insuranceRates, paymentMonth: currentMonthStr });
         if (payroll.ageContext.age >= 60 && !emp.continue_national_pension) {
           notifications.push({ id: `np-${emp.id}`, text: `🛡️ 국민연금 제외 대상: ${emp.name}님 (만 ${payroll.ageContext.age}세 도달)`, type: 'info' });
         }
@@ -73,9 +117,14 @@ export default function Dashboard() {
       headcount: activeHeadcount,
       totalSalaries,
       totalInsurances,
+      totalAccruedLeave,
+      totalUsedLeave,
+      totalRemainingLeave: totalAccruedLeave - totalUsedLeave,
+      totalLeaveDebt,
+      totalSeverancePay,
       notifications
     };
-  }, [company, employees]);
+  }, [company, employees, leaveRecords, insuranceRates]);
 
   const handleEditRatesClick = () => {
     const password = prompt("관리자 비밀번호를 입력하세요.");
@@ -261,7 +310,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px', marginBottom: '32px' }}>
         <div className="glass-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <Users className="text-secondary" />
@@ -285,10 +334,84 @@ export default function Dashboard() {
         <div className="glass-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <ShieldCheck className="text-secondary" />
-            <h3 style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>추정 총 4대보험/산재 (회사부담 포함)</h3>
+            <h3 style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>추정 총 4대보험/산재</h3>
           </div>
           <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
             {dashboardData.totalInsurances.toLocaleString()} <span style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>원</span>
+          </div>
+        </div>
+
+        <div className="glass-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <Clock className="text-secondary" />
+            <h3 style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>전사 잔여 연차 합계</h3>
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+            {dashboardData.totalRemainingLeave.toLocaleString()} <span style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>일</span>
+          </div>
+        </div>
+
+        <div className="glass-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <TrendingDown className="text-secondary" />
+            <h3 style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>전사 연차 사용률</h3>
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
+            {((dashboardData.totalUsedLeave / dashboardData.totalAccruedLeave) * 100 || 0).toFixed(1)} <span style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>%</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card" style={{ 
+        marginBottom: '32px', 
+        background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%)',
+        border: '1px solid rgba(59, 130, 246, 0.2)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
+          <div>
+            <h3 style={{ fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Banknote size={20} color="#60a5fa" /> 기업 재무 부채 추계 <span style={{ fontSize: '13px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '8px' }}>(오늘 기준)</span>
+            </h3>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>총 인사 관련 예상 부채 합계</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#60a5fa' }}>
+              {(dashboardData.totalSeverancePay + dashboardData.totalLeaveDebt).toLocaleString()} <span style={{ fontSize: '14px' }}>원</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          <div style={{ 
+            padding: '24px', 
+            borderRadius: '16px', 
+            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%)',
+            border: '1px solid rgba(59, 130, 246, 0.2)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <Banknote size={24} color="#60a5fa" />
+              <span style={{ fontSize: '13px', color: '#93c5fd' }}>퇴직금 추계액</span>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>
+              {dashboardData.totalSeverancePay.toLocaleString()} <span style={{ fontSize: '16px', fontWeight: 'normal' }}>원</span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>전 직원 오늘 퇴직 시 법정 퇴직금 총액</p>
+          </div>
+
+          <div style={{ 
+            padding: '24px', 
+            borderRadius: '16px', 
+            background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)',
+            border: '1px solid rgba(251, 191, 36, 0.2)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <Clock size={24} color="#fbbf24" />
+              <span style={{ fontSize: '13px', color: '#fcd34d' }}>미사용 연차수당 부채</span>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>
+              {dashboardData.totalLeaveDebt.toLocaleString()} <span style={{ fontSize: '16px', fontWeight: 'normal' }}>원</span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>미사용 연차 전액 정산 시 예상 수당</p>
           </div>
         </div>
       </div>
