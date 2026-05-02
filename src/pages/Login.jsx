@@ -25,6 +25,29 @@ export default function Login() {
     setLoading(false);
   };
 
+  const handleSignUp = async () => {
+    if (!email || !password) {
+      setError('이메일과 비밀번호를 모두 입력해주세요.');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      alert("회원가입이 완료되었습니다. 승인 또는 이메일 인증을 확인해주세요.");
+    }
+    
+    setLoading(false);
+  };
+
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
@@ -32,7 +55,7 @@ export default function Login() {
           <div style={iconWrapperStyle}>
             <ShieldCheck size={40} style={{ color: 'var(--primary-color)' }} />
           </div>
-          <h1 style={titleStyle}>AG HR & PAYROLL</h1>
+          <h1 style={titleStyle}>MJ HR & PAYROLL</h1>
           <p style={subtitleStyle}>통합 인사/급여 관리 시스템에 로그인하세요</p>
         </div>
 
@@ -73,14 +96,19 @@ export default function Login() {
             </div>
           </div>
 
-          <button type="submit" disabled={loading} style={buttonStyle}>
-            {loading ? '로그인 중...' : (
-              <>
-                <LogIn size={18} />
-                로그인
-              </>
-            )}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+            <button type="button" disabled={loading} style={signupButtonStyle} onClick={handleSignUp}>
+              회원가입
+            </button>
+            <button type="submit" disabled={loading} style={{ ...buttonStyle, flex: 2, marginTop: 0 }}>
+              {loading ? '처리 중...' : (
+                <>
+                  <LogIn size={18} />
+                  로그인
+                </>
+              )}
+            </button>
+          </div>
         </form>
 
         <div style={footerStyle}>
@@ -209,6 +237,19 @@ const buttonStyle = {
   gap: '8px',
   transition: 'all 0.2s',
   boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+};
+
+const signupButtonStyle = {
+  flex: 1,
+  padding: '14px',
+  background: 'rgba(255, 255, 255, 0.1)',
+  color: 'white',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  borderRadius: '12px',
+  fontSize: '15px',
+  fontWeight: '600',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
 };
 
 const errorAlertStyle = {
