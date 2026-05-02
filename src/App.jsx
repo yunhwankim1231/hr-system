@@ -11,18 +11,31 @@ import IncomeReporting from './pages/IncomeReporting';
 import SeveranceManagement from './pages/SeveranceManagement';
 import WithholdingTaxLedger from './pages/WithholdingTaxLedger';
 import WithholdingTaxReceipt from './pages/WithholdingTaxReceipt';
-import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote, ClipboardList, FileCheck, Printer, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, X, Plus } from 'lucide-react';
+import Login from './pages/Login';
+import KeyMetrics from './pages/KeyMetrics';
+import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote, ClipboardList, FileCheck, Printer, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, X, Plus, LogOut, TrendingUp } from 'lucide-react';
 import { AppProvider, useAppContext } from './context/AppContext';
 
-function CategoryManager({ label, items, onAdd, onRemove }) {
+function CategoryManager({ label, items, onAdd, onRemove, onReorder }) {
   const [newItem, setNewItem] = useState('');
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
   const handleAdd = () => {
     const trimmed = newItem.trim();
     if (!trimmed) return;
-    if (items.includes(trimmed)) { alert('이미 존재하는 항목입니다.'); return; }
+    if (items.includes(trimmed)) { alert('\uc774\ubbf8 \uc874\uc7ac\ud558\ub294 \ud56d\ubaa9\uc785\ub2c8\ub2e4.'); return; }
     onAdd(trimmed);
     setNewItem('');
   };
+  const handleDrop = (idx) => {
+    if (dragIdx === null || dragIdx === idx) { setDragIdx(null); setOverIdx(null); return; }
+    const reordered = [...items];
+    const [moved] = reordered.splice(dragIdx, 1);
+    reordered.splice(idx, 0, moved);
+    onReorder(reordered);
+    setDragIdx(null); setOverIdx(null);
+  };
+  const tagBase = { display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', color: '#93c5fd', cursor: 'grab', userSelect: 'none', transition: 'transform 0.15s, opacity 0.15s' };
   return (
     <div style={{ marginBottom: '20px' }}>
       <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>{label}</label>
@@ -31,10 +44,11 @@ function CategoryManager({ label, items, onAdd, onRemove }) {
         <button type="button" onClick={handleAdd} className="btn btn-primary" style={{ padding: '8px 14px', flexShrink: 0 }}><Plus size={16} /></button>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', minHeight: '32px' }}>
-        {items.length === 0 && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>등록된 항목이 없습니다.</span>}
-        {items.map(item => (
-          <span key={item} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', color: '#93c5fd' }}>
-            {item}
+        {items.length === 0 && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{'등록된 항목이 없습니다.'}</span>}
+        {items.map((item, idx) => (
+          <span key={item} draggable onDragStart={() => setDragIdx(idx)} onDragOver={(e) => { e.preventDefault(); setOverIdx(idx); }} onDragEnd={() => { setDragIdx(null); setOverIdx(null); }} onDrop={() => handleDrop(idx)}
+            style={{ ...tagBase, opacity: dragIdx === idx ? 0.4 : 1, transform: overIdx === idx && dragIdx !== idx ? 'scale(1.08)' : 'scale(1)', borderColor: overIdx === idx && dragIdx !== idx ? '#60a5fa' : 'rgba(59,130,246,0.3)', boxShadow: overIdx === idx && dragIdx !== idx ? '0 0 8px rgba(96,165,250,0.4)' : 'none' }}>
+            {'⣿'} {item}
             <button type="button" onClick={() => onRemove(item)} style={{ background: 'transparent', border: 'none', color: 'rgba(239,68,68,0.8)', cursor: 'pointer', padding: 0, lineHeight: 1 }}><X size={14} /></button>
           </span>
         ))}
@@ -45,7 +59,7 @@ function CategoryManager({ label, items, onAdd, onRemove }) {
 
 function AppLayout({ children }) {
   const location = useLocation();
-  const { company, setCompany, employeeCategories, setEmployeeCategories, employees } = useAppContext();
+  const { company, setCompany, employeeCategories, setEmployeeCategories, employees, session, logout } = useAppContext();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isFormsOpen, setIsFormsOpen] = useState(
     ['/payslips', '/income-reporting', '/withholding-ledger', '/withholding-receipt', '/certificates'].includes(location.pathname)
@@ -57,6 +71,7 @@ function AppLayout({ children }) {
 
   const mainMenuItems = [
     { path: '/', label: '대시보드', icon: LayoutDashboard },
+    { path: '/metrics', label: '주요 지표', icon: TrendingUp },
     { path: '/employees', label: '임직원 관리', icon: Users },
     { path: '/payroll', label: '급여 관리', icon: Calculator },
     { path: '/daily-workers', label: '일용직 관리', icon: Construction },
@@ -105,6 +120,10 @@ function AppLayout({ children }) {
     });
     if (usedBy.length > 0 && !window.confirm(`"${value}" 항목은 현재 ${usedBy.length}명의 직원이 사용 중입니다.\n삭제하시겠습니까?`)) return;
     setEditingCategories(prev => ({ ...prev, [field]: prev[field].filter(i => i !== value) }));
+  };
+
+  const handleCategoryReorder = (field, newOrder) => {
+    setEditingCategories(prev => ({ ...prev, [field]: newOrder }));
   };
 
   const openSettings = (tab = 'company') => {
@@ -159,7 +178,15 @@ function AppLayout({ children }) {
       <main className="main-content">
         <header className="topbar">
           <div className="topbar-left"><div className="topbar-title">인사 관리 시스템</div></div>
-          <div className="topbar-user">관리자 계정</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{session?.user?.email || '관리자'}</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{company.name || '회사 설정 필요'}</span>
+            </div>
+            <button onClick={logout} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '13px' }}>
+              <LogOut size={16} /> 로그아웃
+            </button>
+          </div>
         </header>
         <div className="page-content">{children}</div>
       </main>
@@ -213,10 +240,10 @@ function AppLayout({ children }) {
             {/* 직원 정보 설정 탭 */}
             {settingsTab === 'employee' && (
               <div>
-                <CategoryManager label="사업장" items={editingCategories.workplaces || []} onAdd={v => handleCategoryAdd('workplaces', v)} onRemove={v => handleCategoryRemove('workplaces', v)} />
-                <CategoryManager label="직무 (담당업무)" items={editingCategories.roles || []} onAdd={v => handleCategoryAdd('roles', v)} onRemove={v => handleCategoryRemove('roles', v)} />
-                <CategoryManager label="직책" items={editingCategories.positions || []} onAdd={v => handleCategoryAdd('positions', v)} onRemove={v => handleCategoryRemove('positions', v)} />
-                <CategoryManager label="급여수령 은행" items={editingCategories.banks || []} onAdd={v => handleCategoryAdd('banks', v)} onRemove={v => handleCategoryRemove('banks', v)} />
+                <CategoryManager label="사업장" items={editingCategories.workplaces || []} onAdd={v => handleCategoryAdd('workplaces', v)} onRemove={v => handleCategoryRemove('workplaces', v)} onReorder={v => handleCategoryReorder('workplaces', v)} />
+                <CategoryManager label="직무 (담당업무)" items={editingCategories.roles || []} onAdd={v => handleCategoryAdd('roles', v)} onRemove={v => handleCategoryRemove('roles', v)} onReorder={v => handleCategoryReorder('roles', v)} />
+                <CategoryManager label="직책" items={editingCategories.positions || []} onAdd={v => handleCategoryAdd('positions', v)} onRemove={v => handleCategoryRemove('positions', v)} onReorder={v => handleCategoryReorder('positions', v)} />
+                <CategoryManager label="급여수령 은행" items={editingCategories.banks || []} onAdd={v => handleCategoryAdd('banks', v)} onRemove={v => handleCategoryRemove('banks', v)} onReorder={v => handleCategoryReorder('banks', v)} />
                 <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
                   * 여기에 등록된 항목들만 임직원 등록/수정 시 드롭다운 선택지로 제공됩니다.
                 </div>
@@ -236,26 +263,39 @@ function AppLayout({ children }) {
 const modalInputStyle = { width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none', fontSize: '14px' };
 const modalLabelStyle = { display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' };
 
+function MainRouter() {
+  const { session } = useAppContext();
+
+  if (!session) {
+    return <Login />;
+  }
+
+  return (
+    <Router>
+      <AppLayout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/metrics" element={<KeyMetrics />} />
+          <Route path="/employees" element={<EmployeeManagement />} />
+          <Route path="/payroll" element={<PayrollManagement />} />
+          <Route path="/daily-workers" element={<DailyWorkerManagement />} />
+          <Route path="/payslips" element={<Payslips />} />
+          <Route path="/income-reporting" element={<IncomeReporting />} />
+          <Route path="/certificates" element={<CertificateIssue />} />
+          <Route path="/leave" element={<LeaveManagement />} />
+          <Route path="/severance" element={<SeveranceManagement />} />
+          <Route path="/withholding-ledger" element={<WithholdingTaxLedger />} />
+          <Route path="/withholding-receipt" element={<WithholdingTaxReceipt />} />
+        </Routes>
+      </AppLayout>
+    </Router>
+  );
+}
+
 function App() {
   return (
     <AppProvider>
-      <Router>
-        <AppLayout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/employees" element={<EmployeeManagement />} />
-            <Route path="/payroll" element={<PayrollManagement />} />
-            <Route path="/daily-workers" element={<DailyWorkerManagement />} />
-            <Route path="/payslips" element={<Payslips />} />
-            <Route path="/income-reporting" element={<IncomeReporting />} />
-            <Route path="/certificates" element={<CertificateIssue />} />
-            <Route path="/leave" element={<LeaveManagement />} />
-            <Route path="/severance" element={<SeveranceManagement />} />
-            <Route path="/withholding-ledger" element={<WithholdingTaxLedger />} />
-            <Route path="/withholding-receipt" element={<WithholdingTaxReceipt />} />
-          </Routes>
-        </AppLayout>
-      </Router>
+      <MainRouter />
     </AppProvider>
   );
 }

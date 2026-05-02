@@ -55,7 +55,22 @@ export function AppProvider({ children }) {
   const [leaveRecords, setLeaveRecords] = useState([]);
   const [taxRates, setTaxRates] = useState([]); // 퇴직소득 세율 추가
   const [employeeCategories, setEmployeeCategories] = useState(initialEmployeeCategories);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // 1. 초기 데이터 로드 및 마이그레이션 로직
   useEffect(() => {
@@ -473,12 +488,32 @@ export function AppProvider({ children }) {
     }
   };
 
+  const getEmployeeAuditLogs = async (empId) => {
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('table_name', 'employees')
+        .eq('record_id', empId)
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        // 테이블이 아직 없거나 권한 에러 시 조용히 빈 배열 리턴
+        console.error('Audit logs fetch error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, calendarNotes, leaveRecords, taxRates, employeeCategories, loading,
       setCompany: updateCompany, setEmployeeCategories: updateEmployeeCategories, setInsuranceRates: updateRates, setCalendarNotes: updateCalendarNotes, addEmployee, updateEmployee, resignEmployee, cancelResignation,
       addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, addCertificate, addLeaveRecord, removeLeaveRecord, setLeaveRecords,
-      toggleLeaveRecord
+      toggleLeaveRecord, session, logout: () => supabase.auth.signOut(), getEmployeeAuditLogs
     }}>
       {children}
     </AppContext.Provider>

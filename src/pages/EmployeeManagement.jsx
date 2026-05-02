@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, UserMinus, Edit, X, Search } from 'lucide-react';
+import { UserPlus, UserMinus, Edit, X, Search, FileText } from 'lucide-react';
 
 export default function EmployeeManagement() {
   const { 
@@ -10,11 +10,17 @@ export default function EmployeeManagement() {
     resignEmployee, 
     cancelResignation,
     updateEmployee,
-    employeeCategories 
+    employeeCategories,
+    getEmployeeAuditLogs
   } = useAppContext();
   const [showForm, setShowForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  
+  // Audit Logs State
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');       // 고용형태
   const [filterStatus, setFilterStatus] = useState('active'); // 재직/퇴사/전체
@@ -258,6 +264,14 @@ export default function EmployeeManagement() {
     }
   };
 
+  const handleOpenAuditLogs = async (empId) => {
+    setLoadingAudit(true);
+    setShowAuditModal(true);
+    const logs = await getEmployeeAuditLogs(empId);
+    setAuditLogs(logs);
+    setLoadingAudit(false);
+  };
+
   // 사업장 목록: 환경 설정 기반 + 기존 데이터에만 있는 값 병합
   const categoryWorkplaces = employeeCategories?.workplaces || [];
   const existingWorkplaces = [...new Set(employees.map(e => e.workplace).filter(Boolean))];
@@ -357,9 +371,21 @@ export default function EmployeeManagement() {
           >
             <X size={24} />
           </button>
-          <h3 style={{ marginBottom: '16px', color: 'var(--primary-color)' }}>
-            {editMode ? '직원 정보 수정' : '신규 입사자 정보 입력'}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, color: 'var(--primary-color)' }}>
+              {editMode ? '직원 정보 수정' : '신규 입사자 정보 입력'}
+            </h3>
+            {editMode && (
+              <button 
+                type="button" 
+                onClick={() => handleOpenAuditLogs(editingId)} 
+                className="btn btn-outline" 
+                style={{ padding: '4px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <FileText size={14} /> 변경 이력 조회
+              </button>
+            )}
+          </div>
           <form onSubmit={handleFormSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div className="form-group">
               <label>이름 (성명)*</label>
@@ -643,6 +669,71 @@ export default function EmployeeManagement() {
           </tbody>
         </table>
       </div>
+
+      {/* Audit Log Modal */}
+      {showAuditModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-card" style={{ width: '700px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
+            <button onClick={() => setShowAuditModal(false)} style={{ position: 'absolute', top: '24px', right: '24px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <X size={24} />
+            </button>
+            <h3 style={{ fontSize: '20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={20} /> 데이터 변경 이력 (Audit Logs)
+            </h3>
+            
+            {loadingAudit ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>불러오는 중...</div>
+            ) : auditLogs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>변경 이력이 없습니다.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {auditLogs.map((log) => {
+                  const dt = new Date(log.created_at);
+                  const dateStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                  
+                  const changes = [];
+                  if (log.action === 'UPDATE' && log.old_data && log.new_data) {
+                    for (const key in log.new_data) {
+                      if (log.old_data[key] !== log.new_data[key] && key !== 'updated_at') {
+                        if (typeof log.new_data[key] !== 'object') {
+                          changes.push({ key, oldVal: log.old_data[key], newVal: log.new_data[key] });
+                        }
+                      }
+                    }
+                  }
+
+                  return (
+                    <div key={log.id} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        <span style={{ fontWeight: 'bold', color: log.action === 'INSERT' ? '#10b981' : log.action === 'UPDATE' ? '#3b82f6' : '#ef4444' }}>
+                          [{log.action}] {log.changed_by_email ? `${log.changed_by_email} 님이 수정함` : ''}
+                        </span>
+                        <span>{dateStr}</span>
+                      </div>
+                      
+                      {log.action === 'UPDATE' && changes.length > 0 ? (
+                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '14px', lineHeight: '1.6' }}>
+                          {changes.map(c => (
+                            <li key={c.key}>
+                              <strong>{c.key}</strong>: <span style={{ textDecoration: 'line-through', color: 'var(--text-secondary)' }}>{c.oldVal === null || c.oldVal === '' ? '(없음)' : String(c.oldVal)}</span> ➔ <span style={{ color: '#60a5fa' }}>{c.newVal === null || c.newVal === '' ? '(없음)' : String(c.newVal)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : log.action === 'UPDATE' ? (
+                        <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>상세 변경 내역 없음 (또는 복합 데이터 변경)</div>
+                      ) : (
+                        <div style={{ fontSize: '14px' }}>
+                          {log.action === 'INSERT' ? '직원 데이터 최초 등록' : '직원 데이터 삭제'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 임직원 상세 정보 모달 */}
       {detailEmp && (

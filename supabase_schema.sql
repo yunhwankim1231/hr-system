@@ -134,3 +134,54 @@ VALUES
 (500000000, 1000000000, 0.42, 35940000, 2024),
 (1000000000, NULL, 0.45, 65940000, 2024)
 ON CONFLICT DO NOTHING;
+
+-- 10. 데이터 이력 관리 (Audit Logs)
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  table_name TEXT NOT NULL,         -- 예: 'employees'
+  record_id TEXT NOT NULL,          -- 변경된 레코드의 ID
+  action TEXT NOT NULL,             -- 'UPDATE', 'INSERT', 'DELETE'
+  old_data JSONB,                   -- 변경 전 데이터
+  new_data JSONB,                   -- 변경 후 데이터
+  changed_by UUID,                  -- 수정한 사람 (auth.users id)
+  changed_by_email TEXT,            -- 수정한 사람의 이메일
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 기존 테이블이 있다면 컬럼 추가 (에러 방지용)
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS changed_by_email TEXT;
+
+-- 직원 테이블(employees) 변경 추적을 위한 함수
+CREATE OR REPLACE FUNCTION log_employee_changes()
+RETURNS TRIGGER AS $$
+DECLARE
+  current_email TEXT;
+BEGIN
+  -- 현재 로그인한 사용자의 JWT에서 이메일을 추출
+  current_email := auth.jwt() ->> 'email';
+
+  IF TG_OP = 'UPDATE' THEN
+    IF OLD IS DISTINCT FROM NEW THEN
+      INSERT INTO audit_logs (table_name, record_id, action, old_data, new_data, changed_by, changed_by_email)
+      VALUES ('employees', NEW.id, 'UPDATE', to_jsonb(OLD), to_jsonb(NEW), auth.uid(), current_email);
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    INSERT INTO audit_logs (table_name, record_id, action, old_data, new_data, changed_by, changed_by_email)
+    VALUES ('employees', NEW.id, 'INSERT', NULL, to_jsonb(NEW), auth.uid(), current_email);
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    INSERT INTO audit_logs (table_name, record_id, action, old_data, new_data, changed_by, changed_by_email)
+    VALUES ('employees', OLD.id, 'DELETE', to_jsonb(OLD), NULL, auth.uid(), current_email);
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 직원 테이블 트리거 (만약 존재하면 제거 후 재성성)
+DROP TRIGGER IF EXISTS employee_audit_trigger ON employees;
+CREATE TRIGGER employee_audit_trigger
+AFTER INSERT OR UPDATE OR DELETE ON employees
+FOR EACH ROW EXECUTE FUNCTION log_employee_changes();
+
