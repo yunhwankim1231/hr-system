@@ -9,7 +9,8 @@ export default function EmployeeManagement() {
     addEmployee, 
     resignEmployee, 
     cancelResignation,
-    updateEmployee 
+    updateEmployee,
+    employeeCategories 
   } = useAppContext();
   const [showForm, setShowForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -19,13 +20,14 @@ export default function EmployeeManagement() {
   const [filterStatus, setFilterStatus] = useState('active'); // 재직/퇴사/전체
   const [filterWorkplace, setFilterWorkplace] = useState('all'); // 사업장
   const [detailEmp, setDetailEmp] = useState(null);
+  const [pensionExemptWarning, setPensionExemptWarning] = useState(false);
   
   const formRef = useRef(null);
 
   const initialFormState = {
     name: '',
     base_salary: '',
-    extra_pays: [], // { name, amount, isTaxFree }
+    extra_pays: [],
     birth_date: '',
     resident_number: '',
     phone: '',
@@ -42,7 +44,10 @@ export default function EmployeeManagement() {
     irp_account_number: '',
     irp_provider: '',
     dependents: 1,
-    children_count: 0
+    children_count: 0,
+    work_hours: 8,
+    employee_id: '',
+    resignation_date: ''
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -83,6 +88,15 @@ export default function EmployeeManagement() {
         }
         
         const calculatedBirth = `${century}${yy}-${mm}-${dd}`;
+
+        // 만 60세 이상 여부 판단
+        const today = new Date();
+        const birth = new Date(calculatedBirth);
+        let age = today.getFullYear() - birth.getFullYear();
+        const monthDiff = today.getMonth() - birth.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+        setPensionExemptWarning(age >= 60);
+
         setFormData(prev => ({ ...prev, [name]: value, birth_date: calculatedBirth }));
         return;
       }
@@ -108,6 +122,7 @@ export default function EmployeeManagement() {
     setEditMode(false);
     setEditingId(null);
     setShowForm(false);
+    setPensionExemptWarning(false);
   };
 
   const openAddForm = () => {
@@ -123,7 +138,7 @@ export default function EmployeeManagement() {
       base_salary: emp.base_salary ? Number(emp.base_salary).toLocaleString() : '',
       extra_pays: emp.extra_pays ? emp.extra_pays.map(ep => ({ ...ep, amount: ep.amount ? Number(ep.amount).toLocaleString() : '' })) : [],
       birth_date: emp.birth_date,
-      resident_number: emp.resident_number || '',
+      resident_number: (emp.resident_number === '000000-0000000' ? '' : emp.resident_number) || '',
       phone: emp.phone || '',
       address: emp.address || '',
       employment_type: emp.employment_type,
@@ -138,8 +153,23 @@ export default function EmployeeManagement() {
       irp_account_number: emp.irp_account_number || '',
       irp_provider: emp.irp_provider || '',
       dependents: emp.dependents || 1,
-      children_count: emp.children_count || 0
+      children_count: emp.children_count || 0,
+      work_hours: emp.work_hours ?? 8,
+      employee_id: emp.employee_id || '',
+      resignation_date: emp.resignation_date || ''
     });
+
+    // 편집 시 만 60세 이상 여부 판단
+    if (emp.birth_date) {
+      const today = new Date();
+      const birth = new Date(emp.birth_date);
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+      setPensionExemptWarning(age >= 60);
+    } else {
+      setPensionExemptWarning(false);
+    }
     setEditMode(true);
     setEditingId(emp.id);
     setShowForm(true);
@@ -154,6 +184,17 @@ export default function EmployeeManagement() {
     e.preventDefault();
     if (!formData.name || !formData.base_salary || !formData.resident_number || !formData.join_date) {
       alert("이름, 주민등록번호, 계약 기본급, 입사일은 필수 항목입니다.");
+      return;
+    }
+    
+    // 주민등록번호 중복 검사
+    const isDuplicate = employees.some(emp => 
+      emp.resident_number === formData.resident_number && 
+      (!editMode || emp.id !== editingId)
+    );
+
+    if (isDuplicate) {
+      alert("이미 등록된 주민등록번호입니다. 확인 후 다시 입력해주세요.");
       return;
     }
     
@@ -217,8 +258,10 @@ export default function EmployeeManagement() {
     }
   };
 
-  // 사업장 목록 동적 생성
-  const workplaceList = [...new Set(employees.map(e => e.workplace).filter(Boolean))];
+  // 사업장 목록: 환경 설정 기반 + 기존 데이터에만 있는 값 병합
+  const categoryWorkplaces = employeeCategories?.workplaces || [];
+  const existingWorkplaces = [...new Set(employees.map(e => e.workplace).filter(Boolean))];
+  const workplaceList = [...new Set([...categoryWorkplaces, ...existingWorkplaces])];
 
   const filteredEmployees = useMemo(() => {
     return employees.filter(emp => {
@@ -334,29 +377,75 @@ export default function EmployeeManagement() {
                 required 
               />
             </div>
+            {pensionExemptWarning && (
+              <div style={{
+                gridColumn: '1 / -1',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                background: 'rgba(251, 191, 36, 0.1)',
+                border: '1px solid rgba(251, 191, 36, 0.4)',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                fontSize: '13px',
+                color: '#fbbf24'
+              }}>
+                <span style={{ fontSize: '18px' }}>⚠️</span>
+                <div>
+                  <strong>국민연금 공제 대상이 아닙니다.</strong>
+                  <span style={{ marginLeft: '8px', color: 'var(--text-secondary)' }}>
+                    만 60세 이상 근로자는 국민연금 의무가입 대상에서 제외됩니다. (국민연금법 제6조)
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="form-group">
               <label>연락처</label>
               <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} style={inputStyle} placeholder="예: 010-0000-0000" />
             </div>
             <div className="form-group">
-              <label>직무 (담당업무)</label>
-              <input type="text" name="role" value={formData.role} onChange={handleInputChange} style={inputStyle} placeholder="예: 재무기획, 프론트엔드 등" />
+              <label>거주지 주소</label>
+              <input type="text" name="address" value={formData.address} onChange={handleInputChange} style={inputStyle} placeholder="거주지 주소 입력" />
             </div>
-            <div className="form-group">
-              <label>직책</label>
-              <input type="text" name="position" value={formData.position} onChange={handleInputChange} style={inputStyle} placeholder="예: 팀장, 과장, 사원 등" />
+            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div className="form-group">
+                <label>사업장</label>
+                <select name="workplace" value={formData.workplace} onChange={handleInputChange} style={inputStyle}>
+                  <option value="" style={optStyle}>-- 선택 --</option>
+                  {(employeeCategories?.workplaces || []).map(wp => <option key={wp} value={wp} style={optStyle}>{wp}</option>)}
+                  {formData.workplace && !(employeeCategories?.workplaces || []).includes(formData.workplace) && <option value={formData.workplace} style={optStyle}>{formData.workplace} (미등록)</option>}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>직무 (담당업무)</label>
+                <select name="role" value={formData.role} onChange={handleInputChange} style={inputStyle}>
+                  <option value="" style={optStyle}>-- 선택 --</option>
+                  {(employeeCategories?.roles || []).map(r => <option key={r} value={r} style={optStyle}>{r}</option>)}
+                  {formData.role && !(employeeCategories?.roles || []).includes(formData.role) && <option value={formData.role} style={optStyle}>{formData.role} (미등록)</option>}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>직책</label>
+                <select name="position" value={formData.position} onChange={handleInputChange} style={inputStyle}>
+                  <option value="" style={optStyle}>-- 선택 --</option>
+                  {(employeeCategories?.positions || []).map(p => <option key={p} value={p} style={optStyle}>{p}</option>)}
+                  {formData.position && !(employeeCategories?.positions || []).includes(formData.position) && <option value={formData.position} style={optStyle}>{formData.position} (미등록)</option>}
+                </select>
+              </div>
             </div>
-            <div className="form-group">
-              <label>사업장</label>
-              <input type="text" name="workplace" value={formData.workplace} onChange={handleInputChange} style={inputStyle} placeholder="예: 본사, 부산지점, 제2공장 등" />
-            </div>
-            <div className="form-group">
-              <label>급여 수령 은행</label>
-              <input type="text" name="bank_name" value={formData.bank_name} onChange={handleInputChange} style={inputStyle} placeholder="예: 신한은행, 국민은행 등" />
-            </div>
-            <div className="form-group">
-              <label>계좌번호</label>
-              <input type="text" name="account_number" value={formData.account_number} onChange={handleInputChange} style={inputStyle} placeholder="숫자 및 대시(-) 입력 가능" />
+            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="form-group">
+                <label>급여 수령 은행</label>
+                <select name="bank_name" value={formData.bank_name} onChange={handleInputChange} style={inputStyle}>
+                  <option value="" style={optStyle}>-- 선택 --</option>
+                  {(employeeCategories?.banks || []).map(b => <option key={b} value={b} style={optStyle}>{b}</option>)}
+                  {formData.bank_name && !(employeeCategories?.banks || []).includes(formData.bank_name) && <option value={formData.bank_name} style={optStyle}>{formData.bank_name} (미등록)</option>}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>계좌번호</label>
+                <input type="text" name="account_number" value={formData.account_number} onChange={handleInputChange} style={inputStyle} placeholder="숫자 및 대시(-) 입력 가능" />
+              </div>
             </div>
             <div className="form-group">
               <label>부양가족 수 (본인 포함)</label>
@@ -579,7 +668,7 @@ export default function EmployeeManagement() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px', fontSize: '14px' }}>
               <div style={detailRowStyle}><span>생년월일</span><strong>{detailEmp.birth_date}</strong></div>
-              <div style={detailRowStyle}><span>주민등록번호</span><strong>{detailEmp.resident_number ? detailEmp.resident_number.substring(0, 8) + '******' : '-'}</strong></div>
+              <div style={detailRowStyle}><span>주민등록번호</span><strong>{detailEmp.resident_number && detailEmp.resident_number !== '000000-0000000' ? detailEmp.resident_number.substring(0, 8) + '******' : '-'}</strong></div>
               <div style={detailRowStyle}><span>연락처</span><strong>{detailEmp.phone || '-'}</strong></div>
               <div style={detailRowStyle}><span>거주지</span><strong style={{textAlign:'right', wordBreak:'keep-all'}}>{detailEmp.address || '-'}</strong></div>
               <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', margin: '4px 0' }}></div>

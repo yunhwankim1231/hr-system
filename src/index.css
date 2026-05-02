@@ -35,12 +35,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 다크 모드에서 날짜 선택기 아이콘 흰색으로 변경 */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  cursor: pointer;
-}
-
 /* App Layout */
 .app-container {
   display: flex;
@@ -58,15 +52,38 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   display: flex;
   flex-direction: column;
   z-index: 10;
+  transition: var(--transition);
+}
+
+.sidebar.collapsed {
+  width: 80px;
 }
 
 .sidebar-brand {
   height: 70px;
   display: flex;
   align-items: center;
-  padding: 0 24px;
-  gap: 12px;
+  justify-content: space-between;
+  padding: 0 16px 0 24px;
   border-bottom: 1px solid var(--card-border);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .sidebar-brand {
+  padding: 0;
+  justify-content: center;
+}
+
+.brand-logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: var(--transition);
+}
+
+.sidebar.collapsed .brand-logo-container {
+  display: none;
 }
 
 .brand-logo {
@@ -79,12 +96,45 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   justify-content: center;
   font-weight: 700;
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .brand-name {
   font-weight: 600;
   font-size: 16px;
   letter-spacing: 0.5px;
+  transition: var(--transition);
+}
+
+.sidebar-collapse-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+  padding: 0;
+}
+
+.sidebar-collapse-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.sidebar.collapsed .sidebar-collapse-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .sidebar-nav {
@@ -93,6 +143,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-x: hidden;
+}
+
+.sidebar.collapsed .sidebar-nav {
+  padding: 24px 8px;
 }
 
 .nav-link {
@@ -105,6 +160,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   text-decoration: none;
   font-weight: 500;
   transition: var(--transition);
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .nav-link {
+  justify-content: center;
+  padding: 12px;
+}
+
+.sidebar.collapsed .nav-link span {
+  display: none;
 }
 
 .nav-link:hover {
@@ -242,6 +307,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+/* 다크 모드에서 날짜 선택기 아이콘 흰색으로 변경 */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
 
 /* 인쇄용 (급여대장) 환경 */
 .print-only {
@@ -254,74 +324,60 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 @media print {
+  /* 브라우저 기본 머리글/바닥글(제목, URL, 시간 등) 완전 제거 */
+  @page {
+    margin: 0 !important;
+  }
+
   body {
     background: white !important;
     color: black !important;
+    margin: 10mm !important;
   }
-  .no-print {
+
+  .no-print,
+  .sidebar,
+  .topbar,
+  header.topbar,
+  .topbar-title {
     display: none !important;
   }
-  .sidebar, .topbar {
-    display: none !important;
-  }
+
   .app-container, .main-content, .page-content {
     display: block !important;
     height: auto !important;
     min-height: 100% !important;
     overflow: visible !important;
   }
+
   .main-content {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
     background: white !important;
   }
+
   .page-content {
     padding: 0 !important;
   }
-  .topbar {
-    display: none !important;
-  }
-  header.topbar {
-    display: none !important;
-  }
-  .topbar-title {
-    display: none !important;
-  }
+
   .content-container {
     padding: 0 !important;
     max-width: 100% !important;
   }
+
   .print-only {
     display: block !important;
   }
+
   .print-table {
     border-collapse: collapse !important;
     width: 100% !important;
-    font-size: 12px !important;
   }
+
   .print-table th, .print-table td {
-    padding: 8px 4px !important;
     border: 1px solid #000 !important;
     color: black !important;
-  }
-
-  /* 급여대장: 가로 A4 */
-  .payroll-management {
-    @page { size: A4 landscape; margin: 10mm; }
-  }
-
-  /* 증명서: 세로 A4 */
-  .certificate-issue .print-only {
-    padding: 30px !important;
-  }
-
-  @page {
-    size: A4 portrait;
-    margin: 0; /* 브라우저 기본 머리글/바닥글 숨김 */
-  }
-  body {
-    margin: 15mm !important; /* 실제 인쇄 여백 */
   }
 
   .page-break {
@@ -329,10 +385,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     width: 100% !important;
     page-break-before: always !important;
     break-before: page !important;
-    page-break-after: always !important;
-    break-after: page !important;
     clear: both !important;
-    position: relative !important;
   }
 
   .payslip-item {
@@ -340,5 +393,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     page-break-inside: avoid !important;
     width: 100% !important;
     margin: 0 auto !important;
+  }
+
+  .certificate-issue .print-only {
+    padding: 20px !important;
   }
 }

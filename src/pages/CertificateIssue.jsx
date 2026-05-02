@@ -102,7 +102,7 @@ export default function CertificateIssue() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Stamp size={24} /> 증명서 발급
+              <Stamp size={24} /> 재직/경력 증명서 발급
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
               재직증명서 및 경력증명서를 자동 생성하고 인쇄합니다. 회사명은 <strong>{company.name}</strong>으로 출력됩니다.

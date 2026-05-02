@@ -13,22 +13,21 @@ export default function LeaveManagement() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [filterStatus, setFilterStatus] = useState('all'); // all, active, resigned
-  const [filterDept, setFilterDept] = useState('all');
+  const [filterWorkplace, setFilterWorkplace] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [modalEmp, setModalEmp] = useState(null);
   const [tempHours, setTempHours] = useState({});
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // 부서 목록 추출
-  const departments = useMemo(() => {
-    const depts = new Set(employees.map(emp => emp.department).filter(Boolean));
-    return ['all', ...Array.from(depts)];
+  // 사업장 목록 추출
+  const workplaces = useMemo(() => {
+    const wps = new Set(employees.map(emp => emp.workplace).filter(Boolean));
+    return ['all', ...Array.from(wps)];
   }, [employees]);
 
-  // 필터나 연도 변경 시 선택 목록 초기화
   useEffect(() => {
     setSelectedIds([]);
-  }, [filterStatus, filterDept, selectedYear, searchTerm]);
+  }, [filterStatus, filterWorkplace, selectedYear, searchTerm]);
 
   // 기준 날짜를 선택된 연도의 12월 31일로 설정
   const baseDate = new Date(selectedYear, 11, 31);
@@ -55,9 +54,9 @@ export default function LeaveManagement() {
     employees.forEach(emp => {
       // 필터링 적용된 통계
       const matchesStatus = filterStatus === 'active' ? !emp.resignation_date : filterStatus === 'resigned' ? !!emp.resignation_date : true;
-      const matchesDept = filterDept === 'all' || emp.department === filterDept;
+      const matchesWorkplace = filterWorkplace === 'all' || emp.workplace === filterWorkplace;
       
-      if (!matchesStatus || !matchesDept) return;
+      if (!matchesStatus || !matchesWorkplace) return;
 
       const workHours = Number(emp.work_hours || 8);
       const { totalLeave } = getLeaveDetails(emp.join_date, baseDate, workHours);
@@ -80,13 +79,13 @@ export default function LeaveManagement() {
     });
 
     return { totalAccrued, totalUsed, totalRemaining: totalAccrued - totalUsed, totalAllowance };
-  }, [employees, groupedRecords, filterStatus, filterDept]);
+  }, [employees, groupedRecords, filterStatus, filterWorkplace]);
 
   const filteredEmployees = employees.filter(emp => {
     const matchesStatus = filterStatus === 'active' ? !emp.resignation_date : filterStatus === 'resigned' ? !!emp.resignation_date : true;
-    const matchesDept = filterDept === 'all' || emp.department === filterDept;
-    const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || (emp.department || '').includes(searchTerm);
-    return matchesStatus && matchesDept && matchesSearch;
+    const matchesWorkplace = filterWorkplace === 'all' || emp.workplace === filterWorkplace;
+    const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || (emp.workplace || '').includes(searchTerm);
+    return matchesStatus && matchesWorkplace && matchesSearch;
   });
 
   // [복구] 연차 수동 조정 로직
@@ -112,16 +111,7 @@ export default function LeaveManagement() {
         </div>
         
         <div style={{ display: 'flex', gap: '12px' }}>
-          <div style={searchWrapperStyle}>
-            <Search size={18} style={{ color: 'var(--text-secondary)' }} />
-            <input 
-              type="text" 
-              placeholder="직원명 또는 부서 검색..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={searchInputStyle}
-            />
-          </div>
+
           <button 
             className="btn btn-primary" 
             onClick={() => window.print()}
@@ -174,19 +164,33 @@ export default function LeaveManagement() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Users size={16} color="var(--text-secondary)" />
-            <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} style={selectStyle}>
-              <option value="all">전체 부서</option>
-              {departments.filter(d => d !== 'all').map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Calendar size={16} color="var(--text-secondary)" />
             <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} style={selectStyle}>
               {Array.from({ length: 10 }, (_, i) => currentYear - 5 + i).map(y => <option key={y} value={y}>{y}년 기준</option>)}
             </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Users size={16} color="var(--text-secondary)" />
+            <select 
+              value={filterWorkplace} 
+              onChange={(e) => setFilterWorkplace(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--card-border)', background: 'var(--card-bg)', color: 'var(--text-primary)', outline: 'none' }}
+            >
+              <option value="all">모든 사업장</option>
+              {workplaces.filter(wp => wp !== 'all').map(wp => (
+                <option key={wp} value={wp}>{wp}</option>
+              ))}
+            </select>
+          </div>
+          <div style={searchWrapperStyle}>
+            <Search size={18} style={{ color: 'var(--text-secondary)' }} />
+            <input 
+              type="text" 
+              placeholder="직원명 또는 사업장 검색..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={searchInputStyle}
+            />
           </div>
         </div>
       </div>
@@ -245,7 +249,7 @@ export default function LeaveManagement() {
                   <td style={{ textAlign: 'center', padding: '18px 24px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <span style={{ fontWeight: 'bold', fontSize: '15px' }}>{emp.name}</span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{emp.department || '부서미지정'}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{emp.workplace || '사업장미지정'}</span>
                     </div>
                   </td>
                   <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px', padding: '18px 24px' }}>{emp.join_date}</td>

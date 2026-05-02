@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { calculateProfessionalRetirementTax } from '../utils/retirementTax';
+import { calculateProfessionalRetirementTax, applyRounding } from '../utils/retirementTax';
 import { getLeaveDetails } from '../utils/leaveCalculations';
 import { 
   Printer, Calculator, User, Calendar, ArrowRight, 
@@ -14,6 +14,7 @@ export default function SeveranceManagement() {
   const { employees, taxRates, company, leaveRecords } = useAppContext();
   
   const [selectedEmpId, setSelectedEmpId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [resignationDate, setResignationDate] = useState(new Date().toISOString().split('T')[0]);
   
   // 정산 설정
@@ -34,6 +35,15 @@ export default function SeveranceManagement() {
   const [unusedLeaveAllowance, setUnusedLeaveAllowance] = useState(0);
 
   const [showAudit, setShowAudit] = useState(false);
+
+  const filteredEmployeesForSearch = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return employees.filter(emp => 
+      emp.name.toLowerCase().includes(q) || 
+      (emp.workplace && emp.workplace.toLowerCase().includes(q)) ||
+      (emp.position && emp.position.toLowerCase().includes(q))
+    );
+  }, [employees, searchTerm]);
 
   const selectedEmp = useMemo(() => employees.find(e => e.id === selectedEmpId), [employees, selectedEmpId]);
 
@@ -96,9 +106,10 @@ export default function SeveranceManagement() {
       if (Number(p.amount) < 0) return { error: '퇴직급여는 0원 이상이어야 합니다.' };
     }
 
-    const totalRawAmount = settlementPeriods.reduce((sum, p) => sum + Number(p.amount), 0) + Number(unusedLeaveAllowance);
+    const totalRawSum = settlementPeriods.reduce((sum, p) => sum + Number(p.amount), 0) + Number(unusedLeaveAllowance);
+    const totalRetirementPay = applyRounding(totalRawSum, roundingPolicy);
     const totalNonTaxable = settlementPeriods.reduce((sum, p) => sum + Number(p.nonTaxable), 0);
-    let taxableRetirementIncome = totalRawAmount - totalNonTaxable;
+    let taxableRetirementIncome = totalRetirementPay - totalNonTaxable;
 
     let excessLaborIncome = 0;
     if (isExecutive && executiveLimit > 0) {
@@ -122,11 +133,11 @@ export default function SeveranceManagement() {
 
     const safeIrpTransfer = selectedEmp?.has_irp_account && isIrpTransfer;
     const withholdingTax = safeIrpTransfer ? 0 : result.totalTax;
-    const netPay = totalRawAmount - withholdingTax;
+    const netPay = totalRetirementPay - withholdingTax;
 
     return {
       ...result,
-      totalRetirementPay: totalRawAmount,
+      totalRetirementPay: totalRetirementPay,
       totalNonTaxable: totalNonTaxable,
       taxableRetirementIncome,
       unusedLeaveAllowance: Number(unusedLeaveAllowance),
@@ -195,9 +206,22 @@ export default function SeveranceManagement() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div className="form-group">
                 <label>대상 근로자</label>
+                <div style={{ position: 'relative', marginBottom: '8px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="직원 이름/부서 검색..." 
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    style={{ ...smallInputStyle, background: 'rgba(255,255,255,0.05)' }}
+                  />
+                </div>
                 <select value={selectedEmpId} onChange={e => setSelectedEmpId(e.target.value)} style={inputStyle}>
-                  <option value="">직원 선택</option>
-                  {employees.map(emp => <option key={emp.id} value={emp.id} style={{ background: '#0f172a' }}>{emp.name}</option>)}
+                  <option value="">직원 선택 ({filteredEmployeesForSearch.length}명)</option>
+                  {filteredEmployeesForSearch.map(emp => (
+                    <option key={emp.id} value={emp.id} style={{ background: '#0f172a' }}>
+                      {emp.name} {emp.position ? `(${emp.position})` : ''} - {emp.workplace || '부서미지정'}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="form-group">

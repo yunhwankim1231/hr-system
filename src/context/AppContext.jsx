@@ -26,6 +26,21 @@ export const initialRates = {
   childDeduction: { 1: 20830, 2: 45830, 3: 79160 }
 };
 
+// 초기 직원 카테고리 (사업장, 직무, 직책)
+export const initialEmployeeCategories = {
+  workplaces: [],
+  roles: [],
+  positions: [],
+  banks: [
+    'KB국민은행', '신한은행', '하나은행', '우리은행', 'SC제일은행', 'iM뱅크(대구)',
+    'NH농협은행', 'IBK기업은행', '수협은행', '한국산업은행',
+    '부산은행', '경남은행', '광주은행', '전북은행', '제주은행',
+    '카카오뱅크', '케이뱅크', '토스뱅크',
+    '우체국', '새마을금고', '신협', '산림조합',
+    'KB증권', 'NH투자증권', '미래에셋증권', '삼성증권', '한국투자증권', '키움증권', '교보증권'
+  ]
+};
+
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
@@ -39,6 +54,7 @@ export function AppProvider({ children }) {
   const [calendarNotes, setCalendarNotes] = useState({});
   const [leaveRecords, setLeaveRecords] = useState([]);
   const [taxRates, setTaxRates] = useState([]); // 퇴직소득 세율 추가
+  const [employeeCategories, setEmployeeCategories] = useState(initialEmployeeCategories);
   const [loading, setLoading] = useState(true);
 
   // 1. 초기 데이터 로드 및 마이그레이션 로직
@@ -53,6 +69,9 @@ export function AppProvider({ children }) {
         const { data: dbCerts } = await supabase.from('certificates').select('*').order('created_at', { ascending: false });
         const { data: dbSettings } = await supabase.from('system_settings').select('value').eq('key', 'insurance_rates').single();
         const { data: dbCalendarNotes } = await supabase.from('system_settings').select('value').eq('key', 'calendar_notes').single();
+        const { data: dbPayrollArchives } = await supabase.from('system_settings').select('value').eq('key', 'payroll_archives').single();
+        const { data: dbCompanyInfo } = await supabase.from('system_settings').select('value').eq('key', 'company_info').single();
+        const { data: dbEmployeeCategories } = await supabase.from('system_settings').select('value').eq('key', 'employee_categories').single();
         const { data: dbTaxRates } = await supabase.from('tax_rate_table').select('*').order('min_amount', { ascending: true });
 
         const mappedEmps = (dbEmps || []).map(e => ({
@@ -84,7 +103,21 @@ export function AppProvider({ children }) {
 
           if (dbSettings) setInsuranceRates(dbSettings.value);
           if (dbCalendarNotes) setCalendarNotes(dbCalendarNotes.value);
+          if (dbCompanyInfo) setCompany(dbCompanyInfo.value);
+          if (dbEmployeeCategories) setEmployeeCategories(dbEmployeeCategories.value);
           if (dbTaxRates) setTaxRates(dbTaxRates);
+
+          if (dbPayrollArchives) {
+            setPayrollArchives(dbPayrollArchives.value);
+          } else {
+            // DB에 없으면 로컬 스토리지 마이그레이션 체크
+            const localArchives = JSON.parse(localStorage.getItem('payrollArchives') || '[]');
+            if (localArchives.length > 0) {
+              console.log('급여 내역 마이그레이션 시작...');
+              setPayrollArchives(localArchives);
+              await supabase.from('system_settings').upsert({ key: 'payroll_archives', value: localArchives });
+            }
+          }
 
           // 로컬에만 데이터가 있고 DB에 없는 경우 마이그레이션 체크
           if ((!dbCerts || dbCerts.length === 0) && localStorage.getItem('certificateHistory')) {
@@ -192,6 +225,7 @@ export function AppProvider({ children }) {
       account_number: rest.account_number,
       children_count: rest.children_count || 0,
       work_hours: rest.work_hours || 8,
+      resident_number: rest.resident_number,
       addons: JSON.stringify(extra_pays || []),
       has_irp_account: rest.has_irp_account || false,
       irp_account_number: rest.irp_account_number || '',
@@ -221,7 +255,7 @@ export function AppProvider({ children }) {
   };
 
   const updateEmployee = async (id, updatedData) => {
-    const { extra_pays, ...rest } = updatedData;
+    const { extra_pays, employee_id, ...rest } = updatedData;
     const payload = { ...rest };
     if (payload.children_count !== undefined) payload.children_count = Number(payload.children_count) || 0;
     if (payload.work_hours !== undefined) payload.work_hours = Number(payload.work_hours) || 8;
@@ -293,6 +327,17 @@ export function AppProvider({ children }) {
   };
 
   // 4. 설정 관리
+  const updateEmployeeCategories = async (newCategories) => {
+    setEmployeeCategories(newCategories);
+    const { error } = await supabase.from('system_settings').upsert({ key: 'employee_categories', value: newCategories });
+    if (error) console.error('직원 카테고리 저장 실패:', error.message);
+  };
+
+  const updateCompany = async (newCompany) => {
+    const { error } = await supabase.from('system_settings').upsert({ key: 'company_info', value: newCompany });
+    if (!error) setCompany(newCompany);
+  };
+
   const updateRates = async (newRates) => {
     const { error } = await supabase.from('system_settings').upsert({ key: 'insurance_rates', value: newRates });
     if (!error) setInsuranceRates(newRates);
@@ -303,13 +348,24 @@ export function AppProvider({ children }) {
     if (!error) setCalendarNotes(newNotes);
   };
 
-  const saveArchive = (year, month, snapshotData) => {
-    setPayrollArchives(prev => {
-      const filtered = prev.filter(p => !(p.year === year && p.month === month));
-      const newArchives = [...filtered, { year, month, data: snapshotData, finalizedAt: new Date().toISOString() }];
+  const saveArchive = async (year, month, snapshotData) => {
+    const filtered = payrollArchives.filter(p => !(p.year === year && p.month === month));
+    const newArchives = [...filtered, { year, month, data: snapshotData, finalizedAt: new Date().toISOString() }];
+    
+    setPayrollArchives(newArchives);
+    const { error } = await supabase.from('system_settings').upsert({ key: 'payroll_archives', value: newArchives });
+    if (error) {
+      console.error('클라우드 저장 실패:', error.message);
+      // 클라우드 실패해도 로컬에는 남겨둠 (백업용)
       localStorage.setItem('payrollArchives', JSON.stringify(newArchives));
-      return newArchives;
-    });
+    }
+  };
+
+  const removeArchive = async (year, month) => {
+    const newArchives = payrollArchives.filter(p => !(p.year === year && p.month === month));
+    setPayrollArchives(newArchives);
+    await supabase.from('system_settings').upsert({ key: 'payroll_archives', value: newArchives });
+    localStorage.setItem('payrollArchives', JSON.stringify(newArchives));
   };
 
   const addCertificate = async (cert) => {
@@ -419,8 +475,8 @@ export function AppProvider({ children }) {
 
   return (
     <AppContext.Provider value={{
-      company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, calendarNotes, leaveRecords, taxRates, loading,
-      setInsuranceRates: updateRates, setCalendarNotes: updateCalendarNotes, addEmployee, updateEmployee, resignEmployee, cancelResignation,
+      company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, calendarNotes, leaveRecords, taxRates, employeeCategories, loading,
+      setCompany: updateCompany, setEmployeeCategories: updateEmployeeCategories, setInsuranceRates: updateRates, setCalendarNotes: updateCalendarNotes, addEmployee, updateEmployee, resignEmployee, cancelResignation,
       addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, addCertificate, addLeaveRecord, removeLeaveRecord, setLeaveRecords,
       toggleLeaveRecord
     }}>

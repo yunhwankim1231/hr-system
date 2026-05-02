@@ -139,8 +139,8 @@ export default function Payslips() {
             </div>
           ))}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
-            <span>과세 지급 총액</span>
-            <span>{data.payroll.taxableTotal.toLocaleString()}원</span>
+            <span>지급 총액</span>
+            <span>{(data.payroll.totalGrossPay || (data.payroll.basePay + (data.payroll.extraPays || []).reduce((sum, ep) => sum + (ep.amount || 0), 0))).toLocaleString()}원</span>
           </div>
         </div>
 
@@ -280,10 +280,14 @@ export default function Payslips() {
 
       <div className="print-only">
         {printDataList.length > 0 ? printDataList.map(data => (
-          <div key={data.emp.id} style={{ pageBreakAfter: 'always' }}>
+          <div key={data.emp.id} className="payslip-item" style={{ pageBreakAfter: 'always', paddingTop: '40px' }}>
             {renderPayslipContent(data)}
           </div>
-        )) : currentData && renderPayslipContent(currentData)}
+        )) : currentData && (
+          <div className="payslip-item" style={{ paddingTop: '40px' }}>
+            {renderPayslipContent(currentData)}
+          </div>
+        )}
       </div>
     </div>
   );
