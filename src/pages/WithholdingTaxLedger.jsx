@@ -24,7 +24,7 @@ function formatResidentId(birthDate, masked) {
 
 /* ───────── 컴포넌트 ───────── */
 export default function WithholdingTaxLedger() {
-  const { employees, payrollArchives } = useAppContext();
+  const { company, employees, payrollArchives } = useAppContext();
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [targetYear, setTargetYear] = useState(new Date().getFullYear());
   const [isMasked, setIsMasked] = useState(true);
@@ -101,9 +101,7 @@ export default function WithholdingTaxLedger() {
       <div className="no-print">
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
           <div>
-            <h2 style={{ fontSize:'24px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px' }}>
-              <FileText size={28} style={{ color:'#60a5fa' }}/> 근로소득 원천징수부
-            </h2>
+            <h2 style={{ fontSize:'28px', fontWeight:'800' }} className="text-gradient">근로소득 원천징수부</h2>
             <p style={{ color:'var(--text-secondary)', fontSize:'13px', marginTop:'4px' }}>소득세법 시행규칙 [별지 제24호 서식(1)] 법정 양식</p>
           </div>
           <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
@@ -153,7 +151,7 @@ export default function WithholdingTaxLedger() {
               </div>
             ) : (
               <div style={{ color:'#000', background:'#fff', padding:'30px', borderRadius:'8px', minWidth:'900px' }}>
-                {renderForm(selectedEmp, targetYear, monthlyData, annualTotals, isMasked, fmt, B, cellBase, cellR, headerCell)}
+                {renderForm(selectedEmp, targetYear, monthlyData, annualTotals, isMasked, fmt, B, cellBase, cellR, headerCell, company)}
               </div>
             )}
           </div>
@@ -163,7 +161,7 @@ export default function WithholdingTaxLedger() {
       {/* ── 인쇄 전용 ── */}
       {selectedEmp && (
         <div className="print-only" style={{ color:'#000', padding:'10mm', background:'#fff' }}>
-          {renderForm(selectedEmp, targetYear, monthlyData, annualTotals, isMasked, fmt, B, cellBase, cellR, headerCell)}
+          {renderForm(selectedEmp, targetYear, monthlyData, annualTotals, isMasked, fmt, B, cellBase, cellR, headerCell, company)}
         </div>
       )}
 
@@ -180,8 +178,8 @@ export default function WithholdingTaxLedger() {
 }
 
 /* ══════ 법정 양식 렌더링 함수 ══════ */
-function renderForm(emp, year, monthlyData, totals, isMasked, fmt, B, cellBase, cellR, headerCell) {
-  const CI = COMPANY_INFO;
+function renderForm(emp, year, monthlyData, totals, isMasked, fmt, B, cellBase, cellR, headerCell, company) {
+  const CI = company || COMPANY_INFO;
   return (
     <>
       <div style={{ textAlign:'center', marginBottom:'16px' }}>
@@ -204,7 +202,7 @@ function renderForm(emp, year, monthlyData, totals, isMasked, fmt, B, cellBase, 
           </tr>
           <tr>
             <td style={headerCell}>대표자</td>
-            <td style={{ ...cellBase, textAlign:'left' }}>{CI.ceoName}</td>
+            <td style={{ ...cellBase, textAlign:'left' }}>{CI.representative || CI.ceoName}</td>
             <td style={headerCell}>주 소</td>
             <td style={{ ...cellBase, fontSize:'9px', textAlign:'left' }}>{CI.address}</td>
             <td style={headerCell}>주민등록번호</td>
@@ -330,10 +328,12 @@ function renderForm(emp, year, monthlyData, totals, isMasked, fmt, B, cellBase, 
           ※ 본 원천징수부는 「소득세법」 제164조에 따라 작성된 법정 서류입니다.
         </div>
         <div style={{ textAlign:'center', position:'relative' }}>
-          <p style={{ fontSize:'13px', marginBottom:'8px' }}>{COMPANY_INFO.name}</p>
-          <p style={{ fontSize:'13px' }}>대표이사 {COMPANY_INFO.ceoName}</p>
+          <p style={{ fontSize:'13px', marginBottom:'8px' }}>{CI.name}</p>
+          <p style={{ fontSize:'13px' }}>대표이사 {CI.representative || CI.ceoName} (인)</p>
           {/* 직인 이미지 오버레이 */}
-          <img src={COMPANY_INFO.sealImagePath} alt="" style={{ position:'absolute', right:'-20px', bottom:'-10px', width:'70px', height:'70px', opacity:0.7 }} onError={e => { e.target.style.display = 'none'; }}/>
+          {(CI.seal_url || CI.sealImagePath) && (
+            <img src={CI.seal_url || CI.sealImagePath} alt="" style={{ position:'absolute', right:'-20px', bottom:'-10px', width:'70px', height:'70px', opacity:0.7 }} onError={e => { e.target.style.display = 'none'; }}/>
+          )}
         </div>
       </div>
     </>

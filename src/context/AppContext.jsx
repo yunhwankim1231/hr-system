@@ -4,7 +4,8 @@ import { supabase } from '../utils/supabaseClient';
 // 초기 단일 법인 데이터
 export const initialCompany = {
   id: 'C1',
-  name: '명진기업(주)'
+  name: '명진기업(주)',
+  seal_url: null
 };
 
 export const initialRates = {
@@ -23,7 +24,8 @@ export const initialRates = {
     { over: 7000000, upTo: 10000000, rate: 0.12, fixed: 256700 },
     { over: 10000000, upTo: 99999999, rate: 0.18, fixed: 616700 }
   ],
-  childDeduction: { 1: 20830, 2: 45830, 3: 79160 }
+  childDeduction: { 1: 20830, 2: 45830, 3: 79160 },
+  default_income_tax_rate: 100
 };
 
 // 초기 직원 카테고리 (사업장, 직무, 직책)
@@ -38,7 +40,8 @@ export const initialEmployeeCategories = {
     '카카오뱅크', '케이뱅크', '토스뱅크',
     '우체국', '새마을금고', '신협', '산림조합',
     'KB증권', 'NH투자증권', '미래에셋증권', '삼성증권', '한국투자증권', '키움증권', '교보증권'
-  ]
+  ],
+  approval_lines: ['사원', '대리', '과장', '차장', '부장', '이사', '상무', '전무', '사장']
 };
 
 const AppContext = createContext();
@@ -119,7 +122,13 @@ export function AppProvider({ children }) {
           if (dbSettings) setInsuranceRates(dbSettings.value);
           if (dbCalendarNotes) setCalendarNotes(dbCalendarNotes.value);
           if (dbCompanyInfo) setCompany(dbCompanyInfo.value);
-          if (dbEmployeeCategories) setEmployeeCategories(dbEmployeeCategories.value);
+          if (dbEmployeeCategories) {
+            // 기존 데이터와 초기값 병합 (새로운 필드 추가 대응)
+            setEmployeeCategories({
+              ...initialEmployeeCategories,
+              ...dbEmployeeCategories.value
+            });
+          }
           if (dbTaxRates) setTaxRates(dbTaxRates);
 
           if (dbPayrollArchives) {
@@ -244,7 +253,8 @@ export function AppProvider({ children }) {
       addons: JSON.stringify(extra_pays || []),
       has_irp_account: rest.has_irp_account || false,
       irp_account_number: rest.irp_account_number || '',
-      irp_provider: rest.irp_provider || ''
+      irp_provider: rest.irp_provider || '',
+      income_tax_rate: rest.income_tax_rate || 100
     };
     
     const { error } = await supabase.from('employees').insert([payload]);
@@ -281,6 +291,7 @@ export function AppProvider({ children }) {
     if (updatedData.has_irp_account !== undefined) payload.has_irp_account = updatedData.has_irp_account;
     if (updatedData.irp_account_number !== undefined) payload.irp_account_number = updatedData.irp_account_number;
     if (updatedData.irp_provider !== undefined) payload.irp_provider = updatedData.irp_provider;
+    if (updatedData.income_tax_rate !== undefined) payload.income_tax_rate = updatedData.income_tax_rate;
 
     // 1. 즉시 로컬 상태 업데이트 (낙관적 업데이트)
     const originalEmps = [...employees];
@@ -316,7 +327,14 @@ export function AppProvider({ children }) {
   // 3. 일용직 관리 CRUD
   const addDailyWorker = async (worker) => {
     const { error } = await supabase.from('daily_workers').insert([worker]);
-    if (!error) setDailyWorkers([...dailyWorkers, worker]);
+    if (!error) {
+      setDailyWorkers([...dailyWorkers, worker]);
+      return true;
+    } else {
+      console.error('일용직 등록 실패:', error);
+      alert('등록 실패: ' + error.message);
+      return false;
+    }
   };
 
   const removeDailyWorker = async (id) => {
@@ -512,7 +530,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       company, employees, dailyWorkers, dailyWorkLogs, insuranceRates, payrollArchives, certificates, calendarNotes, leaveRecords, taxRates, employeeCategories, loading,
       setCompany: updateCompany, setEmployeeCategories: updateEmployeeCategories, setInsuranceRates: updateRates, setCalendarNotes: updateCalendarNotes, addEmployee, updateEmployee, resignEmployee, cancelResignation,
-      addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, addCertificate, addLeaveRecord, removeLeaveRecord, setLeaveRecords,
+      addDailyWorker, removeDailyWorker, addWorkLog, removeWorkLog, updateWorkLog, saveArchive, removeArchive, addCertificate, addLeaveRecord, removeLeaveRecord, setLeaveRecords,
       toggleLeaveRecord, session, logout: () => supabase.auth.signOut(), getEmployeeAuditLogs
     }}>
       {children}

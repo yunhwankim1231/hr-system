@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, UserMinus, Edit, X, Search, FileText } from 'lucide-react';
+import { UserPlus, UserMinus, Edit, X, Search, FileText, Info } from 'lucide-react';
 
 export default function EmployeeManagement() {
   const { 
@@ -27,6 +27,7 @@ export default function EmployeeManagement() {
   const [filterWorkplace, setFilterWorkplace] = useState('all'); // 사업장
   const [detailEmp, setDetailEmp] = useState(null);
   const [pensionExemptWarning, setPensionExemptWarning] = useState(false);
+  const [showSmeInfo, setShowSmeInfo] = useState(false);
   
   const formRef = useRef(null);
 
@@ -51,12 +52,31 @@ export default function EmployeeManagement() {
     irp_provider: '',
     dependents: 1,
     children_count: 0,
+    income_tax_rate: 100,
     work_hours: 8,
+    is_sme_exemption: false,
+    sme_exemption_rate: 90,
     employee_id: '',
     resignation_date: ''
   };
 
   const [formData, setFormData] = useState(initialFormState);
+
+  // ESC 키로 모달 닫기
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showAuditModal) {
+          setShowAuditModal(false);
+        } else if (detailEmp) {
+          setDetailEmp(null);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showAuditModal, detailEmp]);
 
   const handleInputChange = (e) => {
     let { name, value } = e.target;
@@ -160,7 +180,10 @@ export default function EmployeeManagement() {
       irp_provider: emp.irp_provider || '',
       dependents: emp.dependents || 1,
       children_count: emp.children_count || 0,
+      income_tax_rate: emp.income_tax_rate || 100,
       work_hours: emp.work_hours ?? 8,
+      is_sme_exemption: emp.is_sme_exemption || false,
+      sme_exemption_rate: emp.sme_exemption_rate || 90,
       employee_id: emp.employee_id || '',
       resignation_date: emp.resignation_date || ''
     });
@@ -215,6 +238,8 @@ export default function EmployeeManagement() {
       dependents: Number(formData.dependents) || 1,
       children_count: Number(formData.children_count) || 0,
       extra_pays: cleanedExtraPays,
+      is_sme_exemption: formData.is_sme_exemption,
+      sme_exemption_rate: Number(formData.sme_exemption_rate),
       irp_provider: formData.has_irp_account ? formData.irp_provider : '',
       irp_account_number: formData.has_irp_account ? formData.irp_account_number : '',
       probation_end_date: formData.probation_end_date || null
@@ -307,7 +332,7 @@ export default function EmployeeManagement() {
   return (
     <div className="employee-management">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 'bold' }}>임직원 관리</h2>
+        <h2 style={{ fontSize: '28px', fontWeight: '800' }} className="text-gradient">임직원 관리</h2>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ position: 'relative' }}>
@@ -481,6 +506,14 @@ export default function EmployeeManagement() {
               <label>8세~20세 자녀 수 (세액공제 대상)</label>
               <input type="number" min="0" name="children_count" value={formData.children_count} onChange={handleInputChange} style={inputStyle} placeholder="예: 0명" />
             </div>
+            <div className="form-group">
+              <label>소득세 징수 비율</label>
+              <select name="income_tax_rate" value={formData.income_tax_rate} onChange={handleInputChange} style={inputStyle}>
+                <option value={80} style={optStyle}>80% (적게 원천징수)</option>
+                <option value={100} style={optStyle}>100% (표준)</option>
+                <option value={120} style={optStyle}>120% (많이 원천징수)</option>
+              </select>
+            </div>
             <div style={{ gridColumn: '1 / -1', background: 'rgba(96, 165, 250, 0.05)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(96, 165, 250, 0.1)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: formData.has_irp_account ? '16px' : '0' }}>
                 <input 
@@ -517,6 +550,62 @@ export default function EmployeeManagement() {
                       placeholder="계좌번호 입력" 
                     />
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* 중소기업 취업자 소득세 감면 설정 */}
+            <div style={{ gridColumn: '1 / -1', background: 'rgba(167, 139, 250, 0.05)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(167, 139, 250, 0.1)', marginTop: '8px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input 
+                    type="checkbox" 
+                    id="is_sme_exemption"
+                    checked={formData.is_sme_exemption} 
+                    onChange={e => setFormData({ ...formData, is_sme_exemption: e.target.checked })} 
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="is_sme_exemption" style={{ margin: 0, fontWeight: '600', color: '#a78bfa', cursor: 'pointer' }}>중소기업 취업자 소득세 감면 대상</label>
+                </div>
+                
+                <button 
+                  type="button" 
+                  onClick={() => setShowSmeInfo(!showSmeInfo)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Info size={14} /> 제도 알아보기
+                </button>
+              </div>
+
+              {showSmeInfo && (
+                <div style={{ marginTop: '12px', background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '10px', fontSize: '13px', lineHeight: '1.6', border: '1px solid rgba(167, 139, 250, 0.2)' }}>
+                  <p style={{ margin: '0 0 8px 0', fontWeight: '600', color: '#a78bfa' }}>💡 중소기업 취업자 소득세 감면 제도 안내</p>
+                  <p style={{ margin: '0 0 4px 0', color: 'rgba(255,255,255,0.8)' }}>• <strong>청년(15~34세):</strong> 5년간 소득세 90% 감면</p>
+                  <p style={{ margin: '0 0 4px 0', color: 'rgba(255,255,255,0.8)' }}>• <strong>고령자/장애인/경력단절:</strong> 3년간 소득세 70% 감면</p>
+                  <p style={{ margin: '0 0 12px 0', color: 'rgba(255,255,255,0.8)' }}>• <strong>한도:</strong> 연간 최대 200만 원</p>
+                  <a 
+                    href="https://www.nts.go.kr/nts/cm/cntnts/cntntsView.do?mi=40632&cntntsId=239023" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ color: '#60a5fa', textDecoration: 'underline', fontWeight: '500' }}
+                  >
+                    👉 국세청 공식 안내 페이지에서 자세히 보기
+                  </a>
+                </div>
+              )}
+
+              {formData.is_sme_exemption && (
+                <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <label style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>적용 감면율 선택:</label>
+                  <select 
+                    name="sme_exemption_rate" 
+                    value={formData.sme_exemption_rate} 
+                    onChange={handleInputChange} 
+                    style={{ ...inputStyle, width: 'auto', marginTop: 0 }}
+                  >
+                    <option value={90}>90% (청년, 5년)</option>
+                    <option value={70}>70% (고령자/장애인/경력단절여성, 3년)</option>
+                  </select>
                 </div>
               )}
             </div>
@@ -779,6 +868,13 @@ export default function EmployeeManagement() {
                 </>
               )}
               <div style={detailRowStyle}><span>부양가족 수</span><strong>{detailEmp.dependents || 1}명 (본인 포함)</strong></div>
+              <div style={detailRowStyle}>
+                <span>소득세 감면 적용</span>
+                <strong style={{ color: detailEmp.is_sme_exemption ? '#60a5fa' : 'inherit' }}>
+                  {detailEmp.is_sme_exemption ? `적용 중 (${detailEmp.sme_exemption_rate}%)` : '미적용'}
+                </strong>
+              </div>
+              <div style={detailRowStyle}><span>소득세 징수 비율</span><strong>{detailEmp.income_tax_rate || 100}%</strong></div>
               <div style={detailRowStyle}><span>계약 기본급</span><strong style={{ color: 'var(--primary-color)' }}>{Number(detailEmp.base_salary).toLocaleString()}원</strong></div>
               
               {detailEmp.extra_pays && detailEmp.extra_pays.length > 0 && (

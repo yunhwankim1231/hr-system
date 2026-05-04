@@ -323,79 +323,139 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* 급여 관리 컴포넌트 전용 스타일 복구 */
+.editable-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.editable-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.inline-input {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 120px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.inline-input:focus {
+  border-color: var(--primary-color);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.inline-input-num {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 100px;
+  text-align: right;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.inline-input-num:focus {
+  border-color: var(--primary-color);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+  opacity: 0.5;
+}
+
+.delete-btn:hover {
+  color: var(--danger-color);
+  background: rgba(239, 68, 68, 0.1);
+  opacity: 1;
+}
+
+.text-gradient {
+  background: linear-gradient(to right, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+/* 인쇄 설정 최적화 */
 @media print {
-  /* 브라우저 기본 머리글/바닥글(제목, URL, 시간 등) 완전 제거 */
+  /* 브라우저 기본 여백 강제 제거 */
   @page {
+    size: portrait;
+    margin: 15mm 5mm 20mm 5mm !important; /* 각 페이지별 상/하/좌/우 여백 (반복) */
+  }
+
+  html, body {
     margin: 0 !important;
-  }
-
-  body {
+    padding: 0 !important;
     background: white !important;
-    color: black !important;
-    margin: 10mm !important;
-  }
-
-  .no-print,
-  .sidebar,
-  .topbar,
-  header.topbar,
-  .topbar-title {
-    display: none !important;
-  }
-
-  .app-container, .main-content, .page-content {
-    display: block !important;
-    height: auto !important;
-    min-height: 100% !important;
     overflow: visible !important;
   }
 
-  .main-content {
+  #root, .app-container, .main-content, .page-content, .content-container {
     margin: 0 !important;
     padding: 0 !important;
+    display: block !important;
+    overflow: visible !important;
     width: 100% !important;
-    background: white !important;
   }
 
-  .page-content {
-    padding: 0 !important;
-  }
-
-  .content-container {
-    padding: 0 !important;
-    max-width: 100% !important;
+  .no-print, .sidebar, .topbar, .btn, .tabs, .admin-memo-section {
+    display: none !important;
   }
 
   .print-only {
     display: block !important;
+    visibility: visible !important;
+    position: relative !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: auto !important;
+    padding: 10mm 8mm 0 8mm !important; /* 좌우 8mm 여백으로 축소 */
+    box-sizing: border-box !important; /* 패딩이 너비 안으로 포함되도록 */
+  }
+  
+  .certificate-issue .print-only,
+  .payroll-management .print-only {
+    padding: 0 5mm !important; /* 좌우 패딩만 유지, 상하단 여백은 @page에서 처리 */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  .print-table {
-    border-collapse: collapse !important;
-    width: 100% !important;
+  .glass-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    transform: none !important;
   }
-
-  .print-table th, .print-table td {
-    border: 1px solid #000 !important;
-    color: black !important;
-  }
-
-  .page-break {
-    display: block !important;
-    width: 100% !important;
-    page-break-before: always !important;
-    break-before: page !important;
-    clear: both !important;
-  }
-
-  .payslip-item {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-    width: 100% !important;
-    margin: 0 auto !important;
-  }
-
-  .certificate-issue .print-only {
-    padding: 20px !important;
+  
+  /* 페이지 하단 여백 추가를 위한 여백 div 적용 방안 */
+  .payroll-management .print-only,
+  .daily-worker-management .print-only {
+      padding-bottom: 30mm !important; 
   }
 }

@@ -178,7 +178,7 @@ export default function KeyMetrics() {
         </div>
       </div>
 
-      {/* 1. 핵심 요약 카드 (기존) */}
+      {/* 1. 핵심 요약 카드 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '32px' }}>
         <div className="glass-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -218,6 +218,51 @@ export default function KeyMetrics() {
           </div>
           <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#10b981' }}>
             {((metricsData.totalUsedLeave / metricsData.totalAccruedLeave) * 100 || 0).toFixed(1)} <span style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. 부채 추계 (2번째 위치) */}
+      <div className="glass-card" style={{
+        background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%)',
+        border: '1px solid rgba(59, 130, 246, 0.2)',
+        marginBottom: '32px'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
+          <div>
+            <h3 style={{ fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Banknote size={20} color="#60a5fa" /> 기업 재무 부채 추계 <span style={{ fontSize: '13px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '8px' }}>(오늘 기준)</span>
+            </h3>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>총 인사 관련 예상 부채 합계</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#60a5fa' }}>
+              {(metricsData.totalSeverancePay + metricsData.totalLeaveDebt).toLocaleString()} <span style={{ fontSize: '14px' }}>원</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <Banknote size={24} color="#60a5fa" />
+              <span style={{ fontSize: '13px', color: '#93c5fd' }}>퇴직금 추계액</span>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>
+              {metricsData.totalSeverancePay.toLocaleString()} <span style={{ fontSize: '16px', fontWeight: 'normal' }}>원</span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>현재 재직 인원의 법정 퇴직금 총액</p>
+          </div>
+
+          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)', border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <Clock size={24} color="#fbbf24" />
+              <span style={{ fontSize: '13px', color: '#fcd34d' }}>미사용 연차수당 부채</span>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>
+              {metricsData.totalLeaveDebt.toLocaleString()} <span style={{ fontSize: '16px', fontWeight: 'normal' }}>원</span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>미사용 연차 전액 정산 시 예상 수당</p>
           </div>
         </div>
       </div>
@@ -319,49 +364,6 @@ export default function KeyMetrics() {
 
       </div>
 
-      {/* 3. 부채 추계 (기존 유지) */}
-      <div className="glass-card" style={{
-        background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%)',
-        border: '1px solid rgba(59, 130, 246, 0.2)'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
-          <div>
-            <h3 style={{ fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Banknote size={20} color="#60a5fa" /> 기업 재무 부채 추계 <span style={{ fontSize: '13px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '8px' }}>(오늘 기준)</span>
-            </h3>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>총 인사 관련 예상 부채 합계</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#60a5fa' }}>
-              {(metricsData.totalSeverancePay + metricsData.totalLeaveDebt).toLocaleString()} <span style={{ fontSize: '14px' }}>원</span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <Banknote size={24} color="#60a5fa" />
-              <span style={{ fontSize: '13px', color: '#93c5fd' }}>퇴직금 추계액</span>
-            </div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>
-              {metricsData.totalSeverancePay.toLocaleString()} <span style={{ fontSize: '16px', fontWeight: 'normal' }}>원</span>
-            </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>현재 재직 인원의 법정 퇴직금 총액</p>
-          </div>
-
-          <div style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)', border: '1px solid rgba(251, 191, 36, 0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <Clock size={24} color="#fbbf24" />
-              <span style={{ fontSize: '13px', color: '#fcd34d' }}>미사용 연차수당 부채</span>
-            </div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>
-              {metricsData.totalLeaveDebt.toLocaleString()} <span style={{ fontSize: '16px', fontWeight: 'normal' }}>원</span>
-            </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>미사용 연차 전액 정산 시 예상 수당</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -82,8 +82,8 @@ let POS = {
   seal: { top: 93.0, left: 68, w: 15 },
 };
 
-export function WithholdingFormPage1({ emp, data, isMasked, debug, setDebug }) {
-  const CI = COMPANY_INFO;
+export function WithholdingFormPage1({ emp, data, isMasked, debug, setDebug, company }) {
+  const CI = company || COMPANY_INFO;
   const endDate = emp.resignation_date || `${data.year}-12-31`;
   const tfEntries = Object.entries(data.tfMap || {});
   const [positions, setPositions] = React.useState(POS);
@@ -168,8 +168,8 @@ export function WithholdingFormPage1({ emp, data, isMasked, debug, setDebug }) {
         {/* 원천징수의무자 */}
         <Val posKey="companyName" val={CI.name} align="left" />
         <Val posKey="bizNum" val={CI.businessNumber} />
-        <Val posKey="ceoName" val={CI.ceoName} align="left" />
-        <Val posKey="corpNum" val={CI.corporateNumber} />
+        <Val posKey="ceoName" val={CI.representative || CI.ceoName} align="left" />
+        <Val posKey="corpNum" val={CI.corporateNumber || '-'} />
         <Val posKey="companyAddr" val={CI.address} align="left" fontSize="9px" />
 
         {/* 소득자 */}
@@ -222,7 +222,7 @@ export function WithholdingFormPage1({ emp, data, isMasked, debug, setDebug }) {
           position: 'absolute', top: `${POS.seal.top}%`, left: `${POS.seal.left}%`,
           width: '70px', height: '70px', transform: 'translateY(-50%)', opacity: 0.6
         }}>
-          <img src={CI.sealImagePath} alt="직인" style={{ width: '100%', height: '100%' }} onError={e => { e.target.style.display = 'none'; }} />
+          <img src={CI.seal_url || CI.sealImagePath} alt="직인" style={{ width: '100%', height: '100%' }} onError={e => { e.target.style.display = 'none'; }} />
         </div>
 
       </div>

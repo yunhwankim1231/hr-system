@@ -56,21 +56,52 @@ export default function DashboardCalendar() {
     if (!editingNote) return;
     
     const newNotes = { ...calendarNotes };
-    if (editingNote.text.trim() === '') {
+    let dayNotes = Array.isArray(newNotes[editingNote.date]) 
+      ? [...newNotes[editingNote.date]] 
+      : (newNotes[editingNote.date] ? [newNotes[editingNote.date]] : []);
+    
+    if (editingNote.index !== undefined) {
+      // 수정 중
+      if (editingNote.text.trim() === '') {
+        dayNotes.splice(editingNote.index, 1);
+      } else {
+        dayNotes[editingNote.index] = editingNote.text;
+      }
+    } else {
+      // 신규 추가
+      if (editingNote.text.trim() !== '') {
+        dayNotes.push(editingNote.text);
+      }
+    }
+    
+    if (dayNotes.length === 0) {
       delete newNotes[editingNote.date];
     } else {
-      newNotes[editingNote.date] = editingNote.text;
+      newNotes[editingNote.date] = dayNotes;
     }
+    
     if (setCalendarNotes) setCalendarNotes(newNotes);
     setEditingNote(null);
   };
 
-  const handleDeleteNote = (date) => {
+  const handleDeleteNote = (date, index) => {
     if (window.confirm('이 메모를 삭제하시겠습니까?')) {
       const newNotes = { ...calendarNotes };
-      delete newNotes[date];
+      let dayNotes = Array.isArray(newNotes[date]) ? [...newNotes[date]] : [newNotes[date]];
+      
+      dayNotes.splice(index, 1);
+      
+      if (dayNotes.length === 0) {
+        delete newNotes[date];
+      } else {
+        newNotes[date] = dayNotes;
+      }
+      
       if (setCalendarNotes) setCalendarNotes(newNotes);
-      setEditingNote(null);
+      // 만약 편집 중인 메모가 삭제된 것이라면 닫기
+      if (editingNote && editingNote.index === index) {
+        setEditingNote(null);
+      }
     }
   };
 
@@ -101,7 +132,8 @@ export default function DashboardCalendar() {
         ))}
         {days.map((d, i) => {
           const noteKey = getNoteKey(d.day, d.month);
-          const note = calendarNotes[noteKey];
+          const rawNote = calendarNotes[noteKey];
+          const notes = Array.isArray(rawNote) ? rawNote : (rawNote ? [rawNote] : []);
           
           const now = new Date();
           const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -131,7 +163,7 @@ export default function DashboardCalendar() {
               }}
               onMouseEnter={() => d.current && setHoveredDate(noteKey)}
               onMouseLeave={() => setHoveredDate(null)}
-              onClick={() => d.current && setEditingNote({ date: noteKey, text: note || '' })}
+              onClick={() => d.current && setEditingNote({ date: noteKey, text: '', isList: true })}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -149,35 +181,54 @@ export default function DashboardCalendar() {
                 </div>
                 {d.current && (
                   <button 
-                    style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.1)', cursor: 'pointer', padding: '2px' }}
+                    style={{ 
+                      background: hoveredDate === noteKey ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.05)', 
+                      border: '1px solid rgba(255,255,255,0.1)', 
+                      color: hoveredDate === noteKey ? '#60a5fa' : 'var(--text-secondary)', 
+                      cursor: 'pointer', 
+                      padding: '4px',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s',
+                      opacity: notes.length > 0 || hoveredDate === noteKey ? 1 : 0.4
+                    }}
+                    title={notes.length > 0 ? "메모 관리" : "메모 추가"}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setEditingNote({ date: noteKey, text: note || '' });
+                      setEditingNote({ date: noteKey, text: '', isList: true });
                     }}
                   >
-                    {note ? <Edit2 size={12} /> : <Plus size={12} />}
+                    {notes.length > 0 ? <Edit2 size={12} /> : <Plus size={12} />}
                   </button>
                 )}
               </div>
 
-              {note && (
-                <div style={{ 
-                  marginTop: '4px', 
-                  fontSize: '11px', 
-                  padding: '4px 6px', 
-                  background: 'rgba(59, 130, 246, 0.1)', 
-                  borderRadius: '4px', 
-                  color: 'var(--primary-color)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  borderLeft: '2px solid var(--primary-color)'
-                }}>
-                  {note}
-                </div>
-              )}
+              <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {notes.slice(0, 3).map((note, idx) => (
+                  <div key={idx} style={{ 
+                    fontSize: '10px', 
+                    padding: '2px 4px', 
+                    background: 'rgba(59, 130, 246, 0.1)', 
+                    borderRadius: '3px', 
+                    color: 'var(--primary-color)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    borderLeft: '2px solid var(--primary-color)'
+                  }}>
+                    {note}
+                  </div>
+                ))}
+                {notes.length > 3 && (
+                  <div style={{ fontSize: '9px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                    +{notes.length - 3}개 더보기
+                  </div>
+                )}
+              </div>
 
-              {hoveredDate === noteKey && note && (
+              {hoveredDate === noteKey && notes.length > 0 && (
                 <div style={{
                   position: 'absolute',
                   bottom: '100%',
@@ -196,8 +247,14 @@ export default function DashboardCalendar() {
                   marginBottom: '10px',
                   pointerEvents: 'none'
                 }}>
-                  <div style={{ color: 'var(--primary-color)', fontSize: '11px', marginBottom: '4px', fontWeight: 'bold' }}>{noteKey} 메모</div>
-                  {note}
+                  <div style={{ color: 'var(--primary-color)', fontSize: '11px', marginBottom: '6px', fontWeight: 'bold' }}>{noteKey} 메모 목록</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {notes.map((note, idx) => (
+                      <div key={idx} style={{ padding: '4px 0', borderBottom: idx < notes.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                        • {note}
+                      </div>
+                    ))}
+                  </div>
                   <div style={{ position: 'absolute', top: '100%', left: '50%', marginLeft: '-5px', border: '5px solid transparent', borderTopColor: 'rgba(15, 23, 42, 0.95)' }}></div>
                 </div>
               )}
@@ -208,43 +265,94 @@ export default function DashboardCalendar() {
 
       {editingNote && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-card" style={{ width: '400px', maxWidth: '90%' }}>
+          <div className="glass-card" style={{ width: '450px', maxWidth: '90%', maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h4 style={{ fontSize: '16px', fontWeight: 'bold' }}>{editingNote.date} 메모 작성</h4>
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold' }}>{editingNote.date} 메모 관리</h4>
               <button onClick={() => setEditingNote(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleSaveNote}>
-              <textarea 
-                autoFocus
-                value={editingNote.text}
-                onChange={(e) => setEditingNote({ ...editingNote, text: e.target.value })}
-                placeholder="특이사항을 입력하세요..."
-                style={{ 
-                  width: '100%', 
-                  height: '120px', 
-                  padding: '12px', 
-                  background: 'rgba(0,0,0,0.2)', 
-                  border: '1px solid rgba(255,255,255,0.1)', 
-                  borderRadius: '8px', 
-                  color: 'white', 
-                  outline: 'none', 
-                  resize: 'none',
-                  fontSize: '14px',
-                  marginBottom: '16px'
-                }}
-              />
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-                {calendarNotes[editingNote.date] && (
-                  <button type="button" onClick={() => handleDeleteNote(editingNote.date)} className="btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>삭제</button>
-                )}
-                <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-                  <button type="button" onClick={() => setEditingNote(null)} className="btn btn-outline">취소</button>
-                  <button type="submit" className="btn btn-primary">저장하기</button>
-                </div>
+            
+            {editingNote.isList ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {(() => {
+                  const rawNote = calendarNotes[editingNote.date];
+                  const notes = Array.isArray(rawNote) ? rawNote : (rawNote ? [rawNote] : []);
+                  
+                  return (
+                    <>
+                      {notes.length === 0 ? (
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', padding: '20px' }}>작성된 메모가 없습니다.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {notes.map((note, idx) => (
+                            <div key={idx} style={{ 
+                              background: 'rgba(255,255,255,0.03)', 
+                              padding: '12px', 
+                              borderRadius: '8px', 
+                              border: '1px solid rgba(255,255,255,0.05)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}>
+                              <div style={{ fontSize: '14px', flex: 1, marginRight: '10px', whiteSpace: 'pre-wrap' }}>{note}</div>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <button 
+                                  onClick={() => setEditingNote({ ...editingNote, isList: false, text: note, index: idx })}
+                                  className="btn-icon" style={{ width: '28px', height: '28px' }}
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteNote(editingNote.date, idx)}
+                                  className="btn-icon" style={{ width: '28px', height: '28px', color: 'var(--danger-color)' }}
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <button 
+                        onClick={() => setEditingNote({ ...editingNote, isList: false, text: '', index: undefined })}
+                        className="btn btn-primary" 
+                        style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      >
+                        <Plus size={16} /> 새로운 메모 추가
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSaveNote}>
+                <textarea 
+                  autoFocus
+                  value={editingNote.text}
+                  onChange={(e) => setEditingNote({ ...editingNote, text: e.target.value })}
+                  placeholder="메모 내용을 입력하세요..."
+                  style={{ 
+                    width: '100%', 
+                    height: '120px', 
+                    padding: '12px', 
+                    background: 'rgba(0,0,0,0.2)', 
+                    border: '1px solid rgba(255,255,255,0.1)', 
+                    borderRadius: '8px', 
+                    color: 'white', 
+                    outline: 'none', 
+                    resize: 'none',
+                    fontSize: '14px',
+                    marginBottom: '16px'
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setEditingNote({ ...editingNote, isList: true })} className="btn btn-outline">목록으로</button>
+                  <button type="submit" className="btn btn-primary">{editingNote.index !== undefined ? '수정 완료' : '추가하기'}</button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

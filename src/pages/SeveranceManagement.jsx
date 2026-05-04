@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { calculateProfessionalRetirementTax, applyRounding } from '../utils/retirementTax';
+import ApprovalBox from '../components/ApprovalBox';
 import { getLeaveDetails } from '../utils/leaveCalculations';
-import { 
-  Printer, Calculator, User, Calendar, ArrowRight, 
-  CheckCircle, Info, Banknote, Save, History, 
+import {
+  Printer, Calculator, User, Calendar, ArrowRight,
+  CheckCircle, Info, Banknote, Save, History,
   Trash2, Download, ShieldCheck, TrendingUp,
   Plus, Minus, AlertCircle, FileText, Clock
 } from 'lucide-react';
@@ -12,11 +13,11 @@ import { supabase } from '../utils/supabaseClient';
 
 export default function SeveranceManagement() {
   const { employees, taxRates, company, leaveRecords } = useAppContext();
-  
+
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [resignationDate, setResignationDate] = useState(new Date().toISOString().split('T')[0]);
-  
+
   // 정산 설정
   const [serviceYearsMode, setServiceYearsMode] = useState('MONTH'); // MONTH or DAY
   const [roundingPolicy, setRoundingPolicy] = useState('FLOOR_10');
@@ -38,8 +39,8 @@ export default function SeveranceManagement() {
 
   const filteredEmployeesForSearch = useMemo(() => {
     const q = searchTerm.toLowerCase();
-    return employees.filter(emp => 
-      emp.name.toLowerCase().includes(q) || 
+    return employees.filter(emp =>
+      emp.name.toLowerCase().includes(q) ||
       (emp.workplace && emp.workplace.toLowerCase().includes(q)) ||
       (emp.position && emp.position.toLowerCase().includes(q))
     );
@@ -53,11 +54,11 @@ export default function SeveranceManagement() {
       // 1. 예상 퇴직금 자동 계산 (기본급 기준)
       const rawSalary = String(selectedEmp.base_salary || '0').replace(/,/g, '');
       const monthlyWage = Number(rawSalary) || 0;
-      
+
       const start = new Date(selectedEmp.join_date);
       const end = new Date(resignationDate);
       const totalDays = isNaN(start.getTime()) ? 0 : Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      
+
       const estimatedAmount = totalDays >= 365 ? Math.floor((monthlyWage * (totalDays / 365)) / 10) * 10 : 0;
 
       setSettlementPeriods([{
@@ -72,14 +73,14 @@ export default function SeveranceManagement() {
       const currentYear = new Date(resignationDate).getFullYear();
       const baseDate = new Date(currentYear, 11, 31);
       const workHours = Number(selectedEmp.work_hours || 8);
-      
+
       const { totalLeave } = getLeaveDetails(selectedEmp.join_date, baseDate, workHours);
       const used = (leaveRecords || [])
         .filter(r => r.employee_id === selectedEmp.id && new Date(r.leave_date).getFullYear() === currentYear)
         .reduce((sum, r) => sum + Number(r.leave_days), 0);
-      
+
       const remaining = Math.max(0, totalLeave - used);
-      
+
       const extraPaysSum = (selectedEmp.extra_pays || []).reduce((sum, p) => sum + Number(String(p.amount).replace(/,/g, '') || 0), 0);
       const totalFixedMonthly = monthlyWage + extraPaysSum;
       const dailyWage = (totalFixedMonthly / (workHours * 6 * 4.345)) * workHours;
@@ -115,7 +116,7 @@ export default function SeveranceManagement() {
     if (isExecutive && executiveLimit > 0) {
       if (taxableRetirementIncome > executiveLimit) {
         excessLaborIncome = taxableRetirementIncome - executiveLimit;
-        taxableRetirementIncome = executiveLimit; 
+        taxableRetirementIncome = executiveLimit;
       }
     }
 
@@ -152,7 +153,7 @@ export default function SeveranceManagement() {
 
   const handleSave = async () => {
     if (!calculation || calculation.error) return;
-    
+
     const calculationHash = `${selectedEmp.id}_${calculation.totalRetirementPay}_${resignationDate}`;
 
     const payload = {
@@ -185,10 +186,8 @@ export default function SeveranceManagement() {
       <div className="no-print">
         <header style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h2 style={{ fontSize: '26px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Banknote size={32} style={{ color: '#60a5fa' }} /> 전문 퇴직소득 정산 시스템
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>국세청 표준 산식을 준수하는 기업용 정산 모듈</p>
+            <h2 style={{ fontSize: '28px', fontWeight: '800' }} className="text-gradient">퇴직금 관리</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}></p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button className="btn btn-outline" onClick={() => window.print()} disabled={!calculation || calculation.error}>
@@ -207,9 +206,9 @@ export default function SeveranceManagement() {
               <div className="form-group">
                 <label>대상 근로자</label>
                 <div style={{ position: 'relative', marginBottom: '8px' }}>
-                  <input 
-                    type="text" 
-                    placeholder="직원 이름/부서 검색..." 
+                  <input
+                    type="text"
+                    placeholder="직원 이름/부서 검색..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     style={{ ...smallInputStyle, background: 'rgba(255,255,255,0.05)' }}
@@ -281,17 +280,17 @@ export default function SeveranceManagement() {
                 <div className="form-group">
                   <label style={{ fontSize: '12px' }}>잔여 연차 개수 (일)</label>
                   <div style={{ position: 'relative' }}>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       step="0.5"
-                      value={unusedLeaveDays} 
+                      value={unusedLeaveDays}
                       onChange={e => {
                         const rawValue = e.target.value;
                         setUnusedLeaveDays(rawValue);
                         const days = parseFloat(rawValue) || 0;
                         setUnusedLeaveAllowance(Math.floor(days * dailyOrdinaryWage));
-                      }} 
-                      style={{ ...smallInputStyle, paddingRight: '25px' }} 
+                      }}
+                      style={{ ...smallInputStyle, paddingRight: '25px' }}
                     />
                     <span style={unitStyle}>일</span>
                   </div>
@@ -299,11 +298,11 @@ export default function SeveranceManagement() {
                 <div className="form-group">
                   <label style={{ fontSize: '12px' }}>최종 지급 수당 (연차수당)</label>
                   <div style={{ position: 'relative' }}>
-                    <input 
-                      type="text" 
-                      value={Number(unusedLeaveAllowance).toLocaleString()} 
-                      onChange={e => setUnusedLeaveAllowance(Number(e.target.value.replace(/,/g, '')))} 
-                      style={{ ...smallInputStyle, textAlign: 'right', paddingRight: '25px', fontWeight: 'bold', color: '#10b981' }} 
+                    <input
+                      type="text"
+                      value={Number(unusedLeaveAllowance).toLocaleString()}
+                      onChange={e => setUnusedLeaveAllowance(Number(e.target.value.replace(/,/g, '')))}
+                      style={{ ...smallInputStyle, textAlign: 'right', paddingRight: '25px', fontWeight: 'bold', color: '#10b981' }}
                     />
                     <span style={unitStyle}>원</span>
                   </div>
@@ -347,7 +346,7 @@ export default function SeveranceManagement() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span style={{ color: 'var(--text-secondary)' }}>지방소득세 (10%)</span><span>{calculation.residentTax.toLocaleString()} 원</span></div>
                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '12px', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span>세액 합계</span><span style={{ color: '#f87171' }}>{calculation.totalTax.toLocaleString()} 원</span></div>
                   </div>
-                  <div style={resultHighlightStyle}><div style={{ fontSize: '14px', color: '#93c5fd', marginBottom: '4px' }}>{calculation.isIrpTransfer ? 'IRP 이체액 (과세이연)' : '실수령액 (원천징수 후)' }</div><div style={{ fontSize: '32px', fontWeight: 'bold' }}>{calculation.netPay.toLocaleString()} <span style={{ fontSize: '18px' }}>원</span></div>{calculation.isIrpTransfer && <div style={{ fontSize: '12px', color: '#34d399', marginTop: '8px' }}>* IRP 계좌로 전액 이체되어 실 원천징수 세액은 0원입니다.</div>}</div>
+                  <div style={resultHighlightStyle}><div style={{ fontSize: '14px', color: '#93c5fd', marginBottom: '4px' }}>{calculation.isIrpTransfer ? 'IRP 이체액 (과세이연)' : '실수령액 (원천징수 후)'}</div><div style={{ fontSize: '32px', fontWeight: 'bold' }}>{calculation.netPay.toLocaleString()} <span style={{ fontSize: '18px' }}>원</span></div>{calculation.isIrpTransfer && <div style={{ fontSize: '12px', color: '#34d399', marginTop: '8px' }}>* IRP 계좌로 전액 이체되어 실 원천징수 세액은 0원입니다.</div>}</div>
                 </div>
               )}
             </div>
@@ -358,11 +357,16 @@ export default function SeveranceManagement() {
 
       {calculation && !calculation.error && (
         <div className="print-only" style={printReportStyle}>
-          <h1 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '28px', marginBottom: '10px' }}>퇴직소득 정산 내역서</h1>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+            <ApprovalBox />
+          </div>
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <h1 style={{ fontSize: '28px', fontWeight: 'bold', textDecoration: 'underline' }}>퇴직금 산정 내역서</h1>
+          </div>
           <p style={{ textAlign: 'center', fontSize: '14px', color: '#666', marginBottom: '30px' }}>(NTS 국세청 표준 산식 적용)</p>
-          
+
           <div style={{ textAlign: 'right', marginBottom: '10px' }}>출력일: {new Date().toLocaleDateString()}</div>
-          
+
           <table style={printTableStyle}>
             <tbody>
               <tr><th style={printThStyle}>소속</th><td style={printTdStyle}>{selectedEmp?.workplace}</td><th style={printThStyle}>직위</th><td style={printTdStyle}>{selectedEmp?.position || '-'}</td></tr>
@@ -385,7 +389,7 @@ export default function SeveranceManagement() {
             <tbody>
               {settlementPeriods.map((p, i) => (
                 <tr key={i}>
-                  <td style={printTdStyle}>기간 {i+1}</td>
+                  <td style={printTdStyle}>기간 {i + 1}</td>
                   <td style={printTdStyle}>{p.startDate} ~ {p.endDate}</td>
                   <td style={printTdStyle}>{Number(p.amount).toLocaleString()}원</td>
                   <td style={printTdStyle}>{Number(p.nonTaxable).toLocaleString()}원</td>
@@ -443,9 +447,9 @@ export default function SeveranceManagement() {
             <div style={{ marginTop: '15px', padding: '15px', border: '1px solid #000', background: '#f9f9f9' }}>
               <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>※ IRP(개인형 퇴직연금) 과세이연 안내</p>
               <p style={{ fontSize: '13px', lineHeight: '1.4' }}>
-                본 퇴직급여는 IRP 계좌로 전액 이체됨에 따라 퇴직소득세의 원천징수가 유예(이연)되었습니다.<br/>
-                - 이체기관: {selectedEmp.irp_provider}<br/>
-                - 계좌번호: {selectedEmp.irp_account_number}<br/>
+                본 퇴직급여는 IRP 계좌로 전액 이체됨에 따라 퇴직소득세의 원천징수가 유예(이연)되었습니다.<br />
+                - 이체기관: {selectedEmp.irp_provider}<br />
+                - 계좌번호: {selectedEmp.irp_account_number}<br />
                 - 이연세액: {calculation.totalTax.toLocaleString()}원
               </p>
             </div>
@@ -457,7 +461,25 @@ export default function SeveranceManagement() {
             <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'center', gap: '50px', fontSize: '18px' }}>
               <span>성명 : {selectedEmp.name} (인)</span>
             </div>
-            <div style={{ marginTop: '80px', fontSize: '26px', fontWeight: 'bold' }}>{company?.name || '(주)회사'} 귀하</div>
+            <div style={{ marginTop: '80px', fontSize: '26px', fontWeight: 'bold', position: 'relative', display: 'inline-block' }}>
+              {company?.name || '(주)회사'}
+              {company?.seal_url && (
+                <img 
+                  src={company.seal_url} 
+                  alt="직인" 
+                  style={{ 
+                    position: 'absolute', 
+                    right: '-60px', 
+                    top: '-30px', 
+                    width: '80px', 
+                    height: '80px', 
+                    objectFit: 'contain',
+                    opacity: 0.8
+                  }} 
+                />
+              )}
+               귀하
+            </div>
           </div>
         </div>
       )}

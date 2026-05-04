@@ -161,7 +161,19 @@ export function calculatePayroll({ employee, company, rates, paymentMonth }) {
   // 6. 소득세 및 지방소득세 (부양가족 및 자녀 수 반영)
   const dependents = Number(employee.dependents) || 1;
   const childCount = Number(employee.children_count) || 0;
-  let incomeTax = estimateIncomeTax(taxableTotal, dependents, { ...rates, childCountOverride: childCount });
+  const taxRateMultiplier = (Number(employee.income_tax_rate) || 100) / 100;
+  
+  let baseIncomeTax = estimateIncomeTax(taxableTotal, dependents, { ...rates, childCountOverride: childCount });
+  let incomeTax = Math.floor((baseIncomeTax * taxRateMultiplier) / 10) * 10;
+
+  // 중소기업 취업자 소득세 감면 적용
+  if (employee.is_sme_exemption) {
+    const exemptionRate = Number(employee.sme_exemption_rate) || 90;
+    const exemptionAmount = Math.floor(incomeTax * (exemptionRate / 100));
+    // 월별 감면액 적용 (단순 비율 계산)
+    incomeTax = incomeTax - exemptionAmount;
+  }
+
   let residentTax = Math.floor((incomeTax * 0.1) / 10) * 10;
 
   const totalDeductions = nationalPension + healthInsurance + longTermCare + employmentInsurance + incomeTax + residentTax;
@@ -218,7 +230,18 @@ export function recalculateDeductions({ taxableTotal, employee, rates, paymentMo
   // 5. 소득세 (자녀 세액공제 포함)
   const dependents = Number(employee.dependents) || 1;
   const childCount = Number(employee.children_count) || 0;
-  const incomeTax = estimateIncomeTax(taxableTotal, dependents, { ...rates, childCountOverride: childCount });
+  const taxRateMultiplier = (Number(employee.income_tax_rate) || 100) / 100;
+  
+  const baseIncomeTax = estimateIncomeTax(taxableTotal, dependents, { ...rates, childCountOverride: childCount });
+  let incomeTax = Math.floor((baseIncomeTax * taxRateMultiplier) / 10) * 10;
+
+  // 중소기업 취업자 소득세 감면 적용
+  if (employee.is_sme_exemption) {
+    const exemptionRate = Number(employee.sme_exemption_rate) || 90;
+    const exemptionAmount = Math.floor(incomeTax * (exemptionRate / 100));
+    incomeTax = incomeTax - exemptionAmount;
+  }
+
   const residentTax = Math.floor((incomeTax * 0.1) / 10) * 10;
 
   return {

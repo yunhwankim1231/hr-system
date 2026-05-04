@@ -42,6 +42,9 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS irp_provider TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS irp_account_number TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS children_count INTEGER DEFAULT 0;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS work_hours INTEGER DEFAULT 8;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS income_tax_rate INTEGER DEFAULT 100; -- 80, 100, 120% 선택
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_sme_exemption BOOLEAN DEFAULT false;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS sme_exemption_rate INTEGER DEFAULT 90;
 
 -- 2. 일용직 인력풀 (daily_workers)
 CREATE TABLE IF NOT EXISTS daily_workers (

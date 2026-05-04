@@ -6,7 +6,7 @@ import { Printer, FileCheck, UserCircle, Calendar, Eye, EyeOff } from 'lucide-re
 const fmt = v => (v || 0).toLocaleString();
 
 export default function WithholdingTaxReceipt() {
-  const { employees, payrollArchives } = useAppContext();
+  const { company, employees, payrollArchives } = useAppContext();
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [targetYear, setTargetYear] = useState(new Date().getFullYear());
   const [isMasked, setIsMasked] = useState(true);
@@ -68,9 +68,7 @@ export default function WithholdingTaxReceipt() {
       <div className="no-print">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <FileCheck size={28} style={{ color: '#a78bfa' }}/> 근로소득 원천징수영수증
-            </h2>
+            <h2 style={{ fontSize: '28px', fontWeight: '800' }} className="text-gradient">근로소득 원천징수영수증</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '4px' }}>
               소득세법 시행규칙 [별지 제24호 서식(1)] · 개정 2021.3.16. · 법정 양식 재현
             </p>
@@ -127,7 +125,7 @@ export default function WithholdingTaxReceipt() {
                   </div>
                 )}
                 <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden' }}>
-                  {data && <WithholdingFormPage1 emp={selectedEmp} data={data} isMasked={isMasked} debug={debug} setDebug={setDebug} />}
+                  {data && <WithholdingFormPage1 emp={selectedEmp} data={data} isMasked={isMasked} debug={debug} setDebug={setDebug} company={company} />}
                 </div>
               </div>
             )}
@@ -136,8 +134,8 @@ export default function WithholdingTaxReceipt() {
       </div>
 
       {selectedEmp && data && (
-        <div className="print-only" style={{ background: '#fff' }}>
-          <WithholdingFormPage1 emp={selectedEmp} data={data} isMasked={isMasked} debug={false} setDebug={() => {}} />
+        <div className="print-only" style={{ background: '#fff', padding: '10mm' }}>
+          <WithholdingFormPage1 emp={selectedEmp} data={data} isMasked={isMasked} debug={false} setDebug={() => {}} company={company} />
         </div>
       )}
 

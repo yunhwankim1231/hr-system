@@ -1,21 +1,23 @@
 import React, { useState, useMemo } from 'react';
 import { Construction, Plus, Users, Calculator, Calendar, Info, Trash2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import ApprovalBox from '../components/ApprovalBox';
 
 export default function DailyWorkerManagement() {
-  const { 
-    dailyWorkers, 
-    dailyWorkLogs, 
-    loading, 
-    addDailyWorker, 
-    removeDailyWorker, 
-    addWorkLog, 
-    removeWorkLog, 
-    updateWorkLog 
+  const {
+    dailyWorkers,
+    dailyWorkLogs,
+    loading,
+    addDailyWorker,
+    removeDailyWorker,
+    addWorkLog,
+    removeWorkLog,
+    updateWorkLog,
+    company
   } = useAppContext();
 
   const [tempInputs, setTempInputs] = useState({});
-  const [activeTab, setActiveTab] = useState('attendance'); 
+  const [activeTab, setActiveTab] = useState('attendance');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showAddWorker, setShowAddWorker] = useState(false);
   const [newWorker, setNewWorker] = useState({ name: '', phone: '', daily_rate: '', bank: '', account: '' });
@@ -27,12 +29,12 @@ export default function DailyWorkerManagement() {
     const exemption = 150000;
     const taxable = Math.max(wage - exemption, 0);
     let incomeTax = Math.floor(taxable * 0.06 * 0.45 / 10) * 10;
-    
+
     // 소액부징수 적용 (소득세 1,000원 미만 시 미징수)
     if (incomeTax < 1000) {
       incomeTax = 0;
     }
-    
+
     const residentTax = Math.floor(incomeTax * 0.1 / 10) * 10;
     return { incomeTax, residentTax, netPay: wage - incomeTax - residentTax };
   };
@@ -48,12 +50,12 @@ export default function DailyWorkerManagement() {
   const handleAddLog = async (workerId) => {
     if (todayLogs.some(l => l.worker_id === workerId)) return;
     const worker = dailyWorkers.find(w => w.id === workerId);
-    const newLog = { 
-      id: `LOG-${Date.now()}`, 
-      worker_id: workerId, 
-      work_date: selectedDate, 
-      hours: 8, 
-      wage: worker.daily_rate 
+    const newLog = {
+      id: `LOG-${Date.now()}`,
+      worker_id: workerId,
+      work_date: selectedDate,
+      hours: 8,
+      wage: worker.daily_rate
     };
     await addWorkLog(newLog);
   };
@@ -71,9 +73,11 @@ export default function DailyWorkerManagement() {
   const handleAddWorker = async (e) => {
     e.preventDefault();
     const id = `DW-${Date.now()}`;
-    await addDailyWorker({ ...newWorker, id, daily_rate: Number(newWorker.daily_rate) });
-    setNewWorker({ name: '', phone: '', daily_rate: '', bank: '', account: '' });
-    setShowAddWorker(false);
+    const success = await addDailyWorker({ ...newWorker, id, daily_rate: Number(newWorker.daily_rate) });
+    if (success) {
+      setNewWorker({ name: '', phone: '', daily_rate: '', bank: '', account: '' });
+      setShowAddWorker(false);
+    }
   };
 
   const handlePrint = () => { window.print(); };
@@ -117,10 +121,28 @@ export default function DailyWorkerManagement() {
 
   return (
     <div className="daily-worker-management" style={{ animation: 'fadeIn 0.5s ease-out' }}>
-      <div className="print-only" style={{ color: 'black', padding: '20px' }}>
-        <h1 style={{ textAlign: 'center', fontSize: '24px', marginBottom: '20px', borderBottom: '2px solid black', paddingBottom: '10px' }}>
-          {activeTab === 'attendance' ? `일용근로자 노무비 지급 내역서 (${selectedDate})` : `일용근로 소득 정산 리포트 (${reportMonth})`}
+<style>{`@media print {
+  @page { margin: 20mm; }
+  .print-only { margin-top: 0; margin-bottom: 0; padding: 0 15mm; }
+}`}</style>
+      <div className="print-only" style={{ color: 'black', padding: '0' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}><ApprovalBox /></div>
+        
+        <h1 style={{ textAlign: 'center', fontSize: '24px', marginBottom: '15px', fontWeight: 'bold', textDecoration: 'underline', textUnderlineOffset: '8px', textDecorationThickness: '2px' }}>
+          {activeTab === 'attendance' ? `${selectedDate.substring(0, 4)}년 ${selectedDate.substring(5, 7)}월 ${selectedDate.substring(8, 10)}일 일용노무비 지급명세서` : `${reportMonth.substring(0, 4)}년 ${reportMonth.substring(5, 7)}월분 일용근로 소득 정산서`}
         </h1>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '10.5px' }}>
+          <div style={{ display: 'flex', gap: '60px' }}>
+            <span>{company.name}</span>
+            <span>정렬 : 부서별</span>
+          </div>
+          <div style={{ display: 'flex', gap: '15px' }}>
+            <span>[귀속:{activeTab === 'attendance' ? selectedDate.substring(0, 7) : reportMonth}]</span>
+            <span>[지급:{activeTab === 'attendance' ? selectedDate : reportMonth + '-10'}]</span>
+          </div>
+          <div>page : 1 / 1</div>
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black' }}>
           <thead>
             <tr style={{ background: '#eee' }}>
@@ -171,7 +193,7 @@ export default function DailyWorkerManagement() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h2 style={{ fontSize: '28px', fontWeight: '800' }} className="text-gradient">일용직 관리 시스템</h2>
-            <p style={{ color: 'var(--text-secondary)' }}>실시간 클라우드 동기화 모드</p>
+            <p style={{ color: 'var(--text-secondary)' }}></p>
           </div>
           <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '12px', border: '1px solid var(--card-border)' }}>
             <button onClick={() => setActiveTab('attendance')} style={tabStyle(activeTab === 'attendance')}>출근기록</button>
@@ -190,7 +212,7 @@ export default function DailyWorkerManagement() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {dailyWorkers.filter(w => !todayLogs.some(l => l.worker_id === w.id)).map(worker => (
                   <div key={worker.id} onClick={() => handleAddLog(worker.id)} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', cursor: 'pointer' }}>
-                    <div><strong>{worker.name}</strong><br/><small style={{ color: 'var(--text-secondary)' }}>{Number(worker.daily_rate).toLocaleString()}원</small></div>
+                    <div><strong>{worker.name}</strong><br /><small style={{ color: 'var(--text-secondary)' }}>{Number(worker.daily_rate).toLocaleString()}원</small></div>
                     <Plus size={16} />
                   </div>
                 ))}
@@ -211,19 +233,19 @@ export default function DailyWorkerManagement() {
                         <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                           <td style={tdStyle}><strong>{worker?.name}</strong></td>
                           <td style={tdStyle}>
-                            <input 
-                              type="number" 
-                              value={tempInputs[`${log.id}-hours`] ?? log.hours} 
+                            <input
+                              type="number"
+                              value={tempInputs[`${log.id}-hours`] ?? log.hours}
                               onChange={e => setTempInputs({ ...tempInputs, [`${log.id}-hours`]: e.target.value })}
                               onBlur={() => tempInputs[`${log.id}-hours`] !== undefined && handleUpdateLog(log.id, 'hours', tempInputs[`${log.id}-hours`])}
                               onKeyDown={e => e.key === 'Enter' && tempInputs[`${log.id}-hours`] !== undefined && handleUpdateLog(log.id, 'hours', tempInputs[`${log.id}-hours`])}
-                              style={miniInputStyle} 
+                              style={miniInputStyle}
                             />
                           </td>
                           <td style={tdStyle}>
-                            <input 
-                              type="text" 
-                              value={tempInputs[`${log.id}-wage`] !== undefined ? tempInputs[`${log.id}-wage`] : Number(log.wage).toLocaleString()} 
+                            <input
+                              type="text"
+                              value={tempInputs[`${log.id}-wage`] !== undefined ? tempInputs[`${log.id}-wage`] : Number(log.wage).toLocaleString()}
                               onChange={e => {
                                 const val = e.target.value.replace(/[^0-9]/g, '');
                                 setTempInputs({ ...tempInputs, [`${log.id}-wage`]: Number(val).toLocaleString() });
@@ -240,7 +262,7 @@ export default function DailyWorkerManagement() {
                                   handleUpdateLog(log.id, 'wage', numericVal);
                                 }
                               }}
-                              style={{ ...miniInputStyle, width: '90px' }} 
+                              style={{ ...miniInputStyle, width: '90px' }}
                             />
                           </td>
                           <td style={tdStyle}><span title={`세액공제 55% 적용`} style={{ cursor: 'help', borderBottom: '1px dotted' }}>{(tax.incomeTax + tax.residentTax).toLocaleString()}원</span></td>
@@ -272,11 +294,11 @@ export default function DailyWorkerManagement() {
             {showAddWorker && (
               <div className="glass-card">
                 <form onSubmit={handleAddWorker} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-                  <div className="form-group"><label>이름*</label><input type="text" value={newWorker.name} onChange={e => setNewWorker({...newWorker, name: e.target.value})} style={inputStyle} required /></div>
-                  <div className="form-group"><label>연락처*</label><input type="text" value={newWorker.phone} onChange={e => setNewWorker({...newWorker, phone: e.target.value})} style={inputStyle} required /></div>
-                  <div className="form-group"><label>일당(원)*</label><input type="text" value={Number(newWorker.daily_rate).toLocaleString()} onChange={e => setNewWorker({...newWorker, daily_rate: e.target.value.replace(/[^0-9]/g, '')})} style={inputStyle} required /></div>
-                  <div className="form-group"><label>은행명</label><input type="text" value={newWorker.bank} onChange={e => setNewWorker({...newWorker, bank: e.target.value})} style={inputStyle} /></div>
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}><label>계좌번호</label><input type="text" value={newWorker.account} onChange={e => setNewWorker({...newWorker, account: e.target.value})} style={inputStyle} /></div>
+                  <div className="form-group"><label>이름*</label><input type="text" value={newWorker.name} onChange={e => setNewWorker({ ...newWorker, name: e.target.value })} style={inputStyle} required /></div>
+                  <div className="form-group"><label>연락처*</label><input type="text" value={newWorker.phone} onChange={e => setNewWorker({ ...newWorker, phone: e.target.value })} style={inputStyle} required /></div>
+                  <div className="form-group"><label>일당(원)*</label><input type="text" value={Number(newWorker.daily_rate).toLocaleString()} onChange={e => setNewWorker({ ...newWorker, daily_rate: e.target.value.replace(/[^0-9]/g, '') })} style={inputStyle} required /></div>
+                  <div className="form-group"><label>은행명</label><input type="text" value={newWorker.bank} onChange={e => setNewWorker({ ...newWorker, bank: e.target.value })} style={inputStyle} /></div>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}><label>계좌번호</label><input type="text" value={newWorker.account} onChange={e => setNewWorker({ ...newWorker, account: e.target.value })} style={inputStyle} /></div>
                   <div style={{ gridColumn: 'span 3', textAlign: 'right' }}><button type="submit" className="btn btn-primary">등록하기</button></div>
                 </form>
               </div>
@@ -302,13 +324,13 @@ export default function DailyWorkerManagement() {
         {activeTab === 'reports' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-               <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} style={{ ...inputStyle, width: '160px', marginTop: 0 }} />
-               <button className="btn btn-primary" onClick={handlePrint}><Calculator size={16} style={{ marginRight: '8px' }} /> 리포트 인쇄</button>
+              <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} style={{ ...inputStyle, width: '160px', marginTop: 0 }} />
+              <button className="btn btn-primary" onClick={handlePrint}><Calculator size={16} style={{ marginRight: '8px' }} /> 리포트 인쇄</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-               <div className="glass-card"><strong>총 지급액</strong><div style={{ fontSize: '20px' }}>{reportData.summary.totalWage.toLocaleString()}원</div></div>
-               <div className="glass-card"><strong>총 원천세</strong><div style={{ fontSize: '20px' }}>{reportData.summary.totalTax.toLocaleString()}원</div></div>
-               <div className="glass-card"><strong>실지급 합계</strong><div style={{ fontSize: '20px', color: 'var(--success-color)' }}>{reportData.summary.totalNet.toLocaleString()}원</div></div>
+              <div className="glass-card"><strong>총 지급액</strong><div style={{ fontSize: '20px' }}>{reportData.summary.totalWage.toLocaleString()}원</div></div>
+              <div className="glass-card"><strong>총 원천세</strong><div style={{ fontSize: '20px' }}>{reportData.summary.totalTax.toLocaleString()}원</div></div>
+              <div className="glass-card"><strong>실지급 합계</strong><div style={{ fontSize: '20px', color: 'var(--success-color)' }}>{reportData.summary.totalNet.toLocaleString()}원</div></div>
             </div>
           </div>
         )}

@@ -84,7 +84,7 @@ export default function IncomeReporting() {
       <div className="no-print">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold' }}>급여 소득 원장</h2>
+            <h2 style={{ fontSize: '28px', fontWeight: '800' }} className="text-gradient">급여 소득 원장</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>세무 신고 및 퇴사자 보수총액 확인을 위한 누적 급여 조회</p>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -439,8 +439,8 @@ export default function IncomeReporting() {
 }
 
 const selectStyle = { background: 'transparent', border: 'none', color: 'white', outline: 'none', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' };
-const thStyle = { padding: '12px 16px', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '13px' };
-const tdStyle = { padding: '12px 16px', fontSize: '14px' };
+const thStyle = { padding: '12px 16px', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '13px', whiteSpace: 'nowrap' };
+const tdStyle = { padding: '12px 16px', fontSize: '14px', whiteSpace: 'nowrap' };
 const printMetaStyle = { border: '1px solid #000', padding: '8px', background: '#f3f4f6', textAlign: 'center', width: '20%' };
 const printValStyle = { border: '1px solid #000', padding: '8px', width: '30%' };
 const printThStyle = { border: '1px solid #000', padding: '8px', textAlign: 'center' };

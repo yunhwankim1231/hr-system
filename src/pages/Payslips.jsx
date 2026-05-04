@@ -190,9 +190,10 @@ export default function Payslips() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '20px' }}>
+  <style>{`@media print { @page { margin: 20mm; } .print-only { margin-bottom: 20mm; } }`}</style>
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold' }}>급여 명세서</h2>
+          <h2 style={{ fontSize: '28px', fontWeight: '800' }} className="text-gradient">급여 명세서</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>과거 마감 기록 전용 명세서 출력 및 관리</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>

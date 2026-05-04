@@ -171,14 +171,15 @@ export default function Dashboard() {
     setEditingRates({
       ...editingRates,
       incomeTaxSteps: defaultIncomeTaxSteps,
-      childDeduction: { 1: 20830, 2: 45830, 3: 79160 }
+      childDeduction: { 1: 20830, 2: 45830, 3: 79160 },
+      default_income_tax_rate: 100
     });
   };
 
   return (
     <div className="dashboard">
       <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 'bold' }}>{company.name} 대시보드</h2>
+        <h2 style={{ fontSize: '28px', fontWeight: '800' }} className="text-gradient">{company.name} 대시보드</h2>
       </div>
 
       {showRateModal && (
@@ -254,6 +255,21 @@ export default function Dashboard() {
                             setEditingRates({...editingRates, childDeduction: { ...editingRates.childDeduction, 3: Number(numericVal) }});
                         }} style={{ ...smallInputStyle, width: '70px', display: 'inline' }} />
                       </div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(96, 165, 250, 0.05)', borderRadius: '8px', color: 'var(--text-secondary)', border: '1px solid rgba(96, 165, 250, 0.1)' }}>
+                    <div style={{ marginBottom: '8px', fontWeight: 'bold', color: '#60a5fa' }}>* 기본 소득세 징수 비율 (미설정자용)</div>
+                    <select 
+                      value={editingRates.default_income_tax_rate || 100} 
+                      onChange={(e) => setEditingRates({...editingRates, default_income_tax_rate: Number(e.target.value)})}
+                      style={{ ...inputStyle, marginTop: '4px', background: 'rgba(0,0,0,0.3)', fontSize: '13px' }}
+                    >
+                      <option value={80}>80% (적게 원천징수)</option>
+                      <option value={100}>100% (표준)</option>
+                      <option value={120}>120% (많이 원천징수)</option>
+                    </select>
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      * 개별 직원 설정이 없는 경우 이 비율이 적용됩니다.
                     </div>
                   </div>
                 </div>
