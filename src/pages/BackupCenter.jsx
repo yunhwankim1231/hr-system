@@ -121,6 +121,68 @@ export default function BackupCenter() {
     }
   };
 
+  // 1-2. 개별 테이블을 엑셀 연동가능한 한글 CSV 파일로 다운로드 (요청사항 반영)
+  const downloadTableAsCSV = (tableName, data) => {
+    if (!data || data.length === 0) {
+      alert('저장할 데이터가 없습니다.');
+      return;
+    }
+
+    // 1. 헤더 추출
+    const headers = Object.keys(data[0]);
+    
+    // 2. CSV 행 데이터 작성 (쉼표 구분 및 따옴표 이스케이프)
+    const csvRows = [];
+    csvRows.push(headers.join(',')); // 헤더 행
+
+    for (const row of data) {
+      const values = headers.map(header => {
+        const val = row[header];
+        let cell = val === null || val === undefined ? '' : String(val);
+        // 줄바꿈이나 쉼표, 큰따옴표가 들어간 셀 이스케이프 처리
+        if (cell.includes(',') || cell.includes('"') || cell.includes('\n') || cell.includes('\r')) {
+          cell = `"${cell.replace(/"/g, '""')}"`;
+        }
+        return cell;
+      });
+      csvRows.push(values.join(','));
+    }
+
+    // Excel 한글 깨짐 방지용 BOM(Byte Order Mark) \uFEFF 추가
+    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${tableName}_${new Date().toISOString().substring(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 개별 CSV 다운로드 핸들러 (서버 부하 경감을 위해 클릭 시에만 온디맨드로 조회)
+  const handleCSVDownload = async (tableName) => {
+    setLoading(true);
+    setStatusMsg(`[${tableName}] CSV 데이터 추출 중...`);
+    setErrorMsg('');
+    setSuccessMsg('');
+    
+    try {
+      const { data, error } = await supabase.from(tableName).select('*');
+      if (error) throw error;
+      
+      downloadTableAsCSV(tableName, data);
+      setSuccessMsg(`[${tableName}] CSV 파일 다운로드가 완료되었습니다.`);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(`CSV 생성 실패: ${err.message}`);
+    } finally {
+      setLoading(false);
+      setStatusMsg('');
+    }
+  };
+
   // 2. 백업 파일 업로드 핸들러
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -352,29 +414,47 @@ export default function BackupCenter() {
           </button>
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
           {Object.entries(tableCounts).map(([table, count]) => (
-            <div key={table} style={{ padding: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--card-border)', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: 'white' }}>{table}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  {table === 'employees' ? '임직원 정보' :
-                   table === 'daily_workers' ? '일용직 인력' :
-                   table === 'daily_work_logs' ? '일용직 기록' :
-                   table === 'leave_management' ? '연차/근태 기록' :
-                   table === 'certificates' ? '증명서 발급대장' :
-                   table === 'system_settings' ? '시스템 공통설정' :
-                   table === 'tax_rate_table' ? '퇴직금 요율 정보' :
-                   table === 'retirement_tax_calculations' ? '퇴직금 계산기록' :
-                   table === 'payslips' ? '급여명세서 대장' :
-                   table === 'year_end_tax_settlements' ? '연말정산 대장' :
-                   table === 'payroll_archives' ? '급여 마감 보관소' : 
-                   table === 'audit_logs' ? '변경 로그(감사 대장)' : '기타 데이터'}
+            <div key={table} style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--card-border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'white' }}>{table}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    {table === 'employees' ? '임직원 정보' :
+                     table === 'daily_workers' ? '일용직 인력' :
+                     table === 'daily_work_logs' ? '일용직 기록' :
+                     table === 'leave_management' ? '연차/근태 기록' :
+                     table === 'certificates' ? '증명서 발급대장' :
+                     table === 'system_settings' ? '시스템 공통설정' :
+                     table === 'tax_rate_table' ? '퇴직금 요율 정보' :
+                     table === 'retirement_tax_calculations' ? '퇴직금 계산기록' :
+                     table === 'payslips' ? '급여명세서 대장' :
+                     table === 'year_end_tax_settlements' ? '연말정산 대장' :
+                     table === 'payroll_archives' ? '급여 마감 보관소' : 
+                     table === 'audit_logs' ? '변경 로그(감사 대장)' : '기타 데이터'}
+                  </div>
                 </div>
+                <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--primary-color)' }}>
+                  {count.toLocaleString()} 행
+                </span>
               </div>
-              <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--primary-color)' }}>
-                {count.toLocaleString()} 행
-              </span>
+              
+              {/* 개별 CSV 다운로드 버튼 (행 데이터가 있을 때만 노출) */}
+              {count > 0 ? (
+                <button 
+                  onClick={() => handleCSVDownload(table)} 
+                  disabled={loading} 
+                  className="btn btn-outline" 
+                  style={{ padding: '6px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '100%', background: 'rgba(255,255,255,0.02)', marginTop: '8px' }}
+                >
+                  <Download size={13} /> 엑셀용 CSV 다운로드
+                </button>
+              ) : (
+                <div style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.15)', padding: '6px 0', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '6px', marginTop: '8px' }}>
+                  데이터 없음
+                </div>
+              )}
             </div>
           ))}
         </div>
