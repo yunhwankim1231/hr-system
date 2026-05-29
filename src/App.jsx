@@ -14,7 +14,8 @@ import WithholdingTaxLedger from './pages/WithholdingTaxLedger';
 import WithholdingTaxReceipt from './pages/WithholdingTaxReceipt';
 import Login from './pages/Login';
 import KeyMetrics from './pages/KeyMetrics';
-import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote, ClipboardList, FileCheck, Printer, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, X, Plus, LogOut, TrendingUp, Image, Upload, Trash2 } from 'lucide-react';
+import BackupCenter from './pages/BackupCenter';
+import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote, ClipboardList, FileCheck, Printer, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, X, Plus, LogOut, TrendingUp, Image, Upload, Trash2, Database } from 'lucide-react';
 import { AppProvider, useAppContext } from './context/AppContext';
 
 function CategoryManager({ label, items, onAdd, onRemove, onReorder }) {
@@ -79,7 +80,9 @@ function AppLayout({ children }) {
     { path: '/leave', label: '연차 관리', icon: CalendarDays },
     { path: '/severance', label: '퇴직금 관리', icon: Banknote },
     { path: '/year-end-tax', label: '연말정산 관리', icon: FileCheck },
+    { path: '/backup', label: '데이터 백업/복원', icon: Database },
   ];
+
 
   const formMenuItems = [
     { path: '/payslips', label: '급여 명세서', icon: FileText },
@@ -458,6 +461,7 @@ function MainRouter() {
           <Route path="/year-end-tax" element={<YearEndTaxManagement />} />
           <Route path="/withholding-ledger" element={<WithholdingTaxLedger />} />
           <Route path="/withholding-receipt" element={<WithholdingTaxReceipt />} />
+          <Route path="/backup" element={<BackupCenter />} />
         </Routes>
       </AppLayout>
     </Router>
