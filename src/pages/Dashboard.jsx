@@ -2,13 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { calculatePayroll } from '../utils/payrollCalculations';
 import { getLeaveDetails } from '../utils/leaveCalculations';
-import { Users, CreditCard, ShieldCheck, Bell, Settings, X, Banknote, Clock, TrendingDown } from 'lucide-react';
+import { Users, CreditCard, ShieldCheck, Bell, Settings, X, Banknote, Clock, TrendingDown, HelpCircle } from 'lucide-react';
 import DashboardCalendar from '../components/DashboardCalendar';
 
 export default function Dashboard() {
   const { company, employees, insuranceRates, setInsuranceRates, leaveRecords } = useAppContext();
   
   const [showRateModal, setShowRateModal] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [editingRates, setEditingRates] = useState({});
   const [activeTab, setActiveTab] = useState('insurance'); // insurance | incomeTax
   
@@ -76,19 +77,19 @@ export default function Dashboard() {
         if (emp.probation_end_date) {
           const pDate = new Date(emp.probation_end_date);
           if (pDate.getMonth() === today.getMonth() && pDate.getFullYear() === today.getFullYear()) {
-            notifications.push({ id: `p-${emp.id}`, text: `🎓 ${emp.name}님 수습 기간이 종료됩니다. (${emp.probation_end_date})`, type: 'warning', reason: '수습 기간 종료 알림' });
+            notifications.push({ id: `p-${emp.id}`, text: `🎓 ${emp.name}님 수습 기간이 종료됩니다. (${emp.probation_end_date})`, type: 'warning', reason: '수습 기간 종료 알림', badge: '수습 만료' });
           }
         }
         const jDate = new Date(emp.join_date);
         if (jDate.getMonth() === today.getMonth() && jDate.getFullYear() === today.getFullYear()) {
-          notifications.push({ id: `j-${emp.id}`, text: `👏 이번 달 신규 입사자: ${emp.name}님 (${emp.join_date})`, type: 'info', reason: '신규 입사자 알림' });
+          notifications.push({ id: `j-${emp.id}`, text: `👏 이번 달 신규 입사자: ${emp.name}님 (${emp.join_date})`, type: 'info', reason: '신규 입사자 알림', badge: '신규 입사' });
         }
       }
 
       if (emp.resignation_date) {
         const rDate = new Date(emp.resignation_date);
         if (rDate.getMonth() === today.getMonth() && rDate.getFullYear() === today.getFullYear()) {
-          notifications.push({ id: `r-${emp.id}`, text: `🏃 이번 달 퇴사 예정/완료: ${emp.name}님 (${emp.resignation_date})`, type: 'danger', reason: '퇴사 일정 알림' });
+          notifications.push({ id: `r-${emp.id}`, text: `🏃 이번 달 퇴사 예정/완료: ${emp.name}님 (${emp.resignation_date})`, type: 'danger', reason: '퇴사 일정 알림', badge: '퇴사 일정' });
         }
       }
 
@@ -96,7 +97,7 @@ export default function Dashboard() {
         const bDate = new Date(emp.birth_date);
         const turned60ThisMonth = (today.getFullYear() - bDate.getFullYear() === 60) && (today.getMonth() === bDate.getMonth());
         if (turned60ThisMonth && !emp.continue_national_pension) {
-          notifications.push({ id: `np-${emp.id}`, text: `🛡️ 국민연금 공제 종료 안내: ${emp.name}님께서 이번 달 만 60세가 도달하여 공제가 면제됩니다.`, type: 'warning', reason: '60세 국민연금 공제 종료' });
+          notifications.push({ id: `np-${emp.id}`, text: `🛡️ 국민연금 공제 종료 안내: ${emp.name}님께서 이번 달 만 60세가 도달하여 공제가 면제됩니다.`, type: 'warning', reason: '60세 국민연금 공제 종료', badge: '공제 면제' });
         }
       }
     });
@@ -107,7 +108,8 @@ export default function Dashboard() {
         id: 'monthly-backup-day-alert',
         text: '🔔 오늘은 매월 11일 시스템 정기 백업일입니다! 데이터 유실 리스크 예방을 위해 [데이터 백업/복원] 메뉴로 이동하여 최신 백업 파일을 PC에 다운로드해 보관해 주십시오.',
         type: 'warning',
-        reason: '월간 정기 백업 알림'
+        reason: '월간 정기 백업 알림',
+        badge: '정기 백업'
       });
     }
 
@@ -328,17 +330,79 @@ export default function Dashboard() {
       </div>
 
       {/* 1. 이번 달 주요 알림 */}
-      <div className="glass-card" style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-          <Bell className="text-secondary" />
-          <h3 style={{ fontSize: '18px', fontWeight: '600' }}>이번 달 주요 알림</h3>
+      <div className="glass-card" style={{ marginBottom: '32px', position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Bell className="text-secondary" />
+            <h3 style={{ fontSize: '18px', fontWeight: '600' }}>이번 달 주요 알림</h3>
+          </div>
+          <button 
+            onClick={() => setShowHelp(!showHelp)} 
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              color: showHelp ? 'var(--primary-color)' : 'var(--text-secondary)', 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              transition: 'all 0.2s ease-in-out',
+              padding: '4px 8px',
+              borderRadius: '6px'
+            }}
+            title="알림 생성 기준 안내"
+          >
+            <HelpCircle size={18} />
+            <span style={{ fontWeight: '500' }}>알림 기준 안내</span>
+          </button>
         </div>
+
+        {/* 도움말 안내 박스 (1번 구현) */}
+        {showHelp && (
+          <div className="help-box" style={{ 
+            background: 'rgba(30, 41, 59, 0.7)', 
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '20px',
+            backdropFilter: 'blur(10px)',
+            animation: 'fadeIn 0.3s ease-out'
+          }}>
+            <h4 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              💡 대시보드 알림 생성 기준 가이드
+            </h4>
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px', color: 'var(--text-secondary)', padding: 0, margin: 0 }}>
+              <li style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span className="badge-mini badge-warning" style={{ minWidth: '70px', textAlign: 'center' }}>수습 만료</span>
+                <span style={{ color: 'var(--text-primary)' }}>재직 직원 중 수습 종료일의 연/월이 이번 달과 일치할 때 발생합니다.</span>
+              </li>
+              <li style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span className="badge-mini badge-info" style={{ minWidth: '70px', textAlign: 'center' }}>신규 입사</span>
+                <span style={{ color: 'var(--text-primary)' }}>재직 직원 중 입사일의 연/월이 이번 달과 일치할 때 발생합니다.</span>
+              </li>
+              <li style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span className="badge-mini badge-danger" style={{ minWidth: '70px', textAlign: 'center' }}>퇴사 일정</span>
+                <span style={{ color: 'var(--text-primary)' }}>퇴사(예정) 직원 중 퇴사일의 연/월이 이번 달과 일치할 때 발생합니다.</span>
+              </li>
+              <li style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span className="badge-mini badge-warning" style={{ minWidth: '70px', textAlign: 'center' }}>공제 면제</span>
+                <span style={{ color: 'var(--text-primary)' }}>재직 직원 중 이번 달 만 60세 생일이 도래해 국민연금 공제가 면제되는 경우 발생합니다.</span>
+              </li>
+              <li style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span className="badge-mini badge-warning" style={{ minWidth: '70px', textAlign: 'center' }}>정기 백업</span>
+                <span style={{ color: 'var(--text-primary)' }}>매월 11일 시스템 정기 데이터 백업일 당일에 모든 사용자에게 강제 노출됩니다.</span>
+              </li>
+            </ul>
+          </div>
+        )}
+
         {dashboardData.notifications.length === 0 ? (
           <div style={{ color: 'var(--text-secondary)', padding: '20px 0' }}>이번 달 예정된 알림이 없습니다.</div>
         ) : (
           <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {dashboardData.notifications.map(noti => (
-              <li key={noti.id} className="notification-item" style={{ 
+              <li key={noti.id} style={{ 
                 padding: '16px', 
                 background: 'rgba(255,255,255,0.03)', 
                 borderRadius: '8px',
@@ -346,10 +410,33 @@ export default function Dashboard() {
                   noti.type === 'info' ? 'var(--primary-color)' : 
                   noti.type === 'warning' ? 'var(--warning-color)' : 
                   'var(--danger-color)'
-                }`
+                }`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '16px',
+                flexWrap: 'wrap'
               }}>
-                {noti.text}
-                <span className="tooltip">{noti.reason}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 300px' }}>
+                  <span className={`badge-mini ${
+                    noti.type === 'info' ? 'badge-info' : 
+                    noti.type === 'warning' ? 'badge-warning' : 
+                    'badge-danger'
+                  }`} style={{ minWidth: '70px', textAlign: 'center' }}>
+                    {noti.badge}
+                  </span>
+                  <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>{noti.text}</span>
+                </div>
+                <span style={{ 
+                  fontSize: '11px', 
+                  color: 'var(--text-secondary)', 
+                  background: 'rgba(255,255,255,0.05)', 
+                  padding: '4px 8px', 
+                  borderRadius: '4px',
+                  border: '1px solid rgba(255,255,255,0.05)'
+                }}>
+                  {noti.reason}
+                </span>
               </li>
             ))}
           </ul>

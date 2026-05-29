@@ -472,28 +472,43 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   text-decoration: underline;
 }
 
-/* Tooltip for notifications */
-.notification-item {
-  position: relative;
-  cursor: pointer;
-}
-.notification-item .tooltip {
-  visibility: hidden;
-  opacity: 0;
-  position: absolute;
-  top: 50%;
-  left: 105%;
-  transform: translateY(-50%);
-  background: var(--card-bg);
-  color: var(--text-primary);
+/* Badge styles for notifications */
+.badge-mini {
+  display: inline-block;
   padding: 4px 8px;
-  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
   white-space: nowrap;
-  box-shadow: var(--glass-shadow);
-  transition: opacity 0.2s ease-in-out;
-  z-index: 10;
+  text-align: center;
 }
-.notification-item:hover .tooltip {
-  visibility: visible;
-  opacity: 1;
+
+.badge-info {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* fadeIn animation for help box */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
