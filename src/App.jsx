@@ -9,11 +9,12 @@ import CertificateIssue from './pages/CertificateIssue';
 import DailyWorkerManagement from './pages/DailyWorkerManagement.jsx';
 import IncomeReporting from './pages/IncomeReporting';
 import SeveranceManagement from './pages/SeveranceManagement';
+import YearEndTaxManagement from './pages/YearEndTaxManagement';
 import WithholdingTaxLedger from './pages/WithholdingTaxLedger';
 import WithholdingTaxReceipt from './pages/WithholdingTaxReceipt';
 import Login from './pages/Login';
 import KeyMetrics from './pages/KeyMetrics';
-import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote, ClipboardList, FileCheck, Printer, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, X, Plus, LogOut, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, FileText, CalendarDays, Users, Calculator, Stamp, Construction, FileSearch, Banknote, ClipboardList, FileCheck, Printer, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Settings, X, Plus, LogOut, TrendingUp, Image, Upload, Trash2 } from 'lucide-react';
 import { AppProvider, useAppContext } from './context/AppContext';
 
 function CategoryManager({ label, items, onAdd, onRemove, onReorder }) {
@@ -77,6 +78,7 @@ function AppLayout({ children }) {
     { path: '/daily-workers', label: '일용직 관리', icon: Construction },
     { path: '/leave', label: '연차 관리', icon: CalendarDays },
     { path: '/severance', label: '퇴직금 관리', icon: Banknote },
+    { path: '/year-end-tax', label: '연말정산 관리', icon: FileCheck },
   ];
 
   const formMenuItems = [
@@ -99,7 +101,8 @@ function AppLayout({ children }) {
       workplaces: [...(editingCategories.workplaces || [])],
       roles: [...(editingCategories.roles || [])],
       positions: [...(editingCategories.positions || [])],
-      banks: [...(editingCategories.banks || [])]
+      banks: [...(editingCategories.banks || [])],
+      approval_lines: [...(editingCategories.approval_lines || [])]
     };
     await setEmployeeCategories(toSave);
     setShowSettings(false);
@@ -107,7 +110,7 @@ function AppLayout({ children }) {
   };
 
   const handleCategoryAdd = (field, value) => {
-    setEditingCategories(prev => ({ ...prev, [field]: [...prev[field], value] }));
+    setEditingCategories(prev => ({ ...prev, [field]: [...(prev[field] || []), value] }));
   };
 
   const handleCategoryRemove = (field, value) => {
@@ -119,7 +122,7 @@ function AppLayout({ children }) {
       return false;
     });
     if (usedBy.length > 0 && !window.confirm(`"${value}" 항목은 현재 ${usedBy.length}명의 직원이 사용 중입니다.\n삭제하시겠습니까?`)) return;
-    setEditingCategories(prev => ({ ...prev, [field]: prev[field].filter(i => i !== value) }));
+    setEditingCategories(prev => ({ ...prev, [field]: (prev[field] || []).filter(i => i !== value) }));
   };
 
   const handleCategoryReorder = (field, newOrder) => {
@@ -204,6 +207,8 @@ function AppLayout({ children }) {
             <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', background: 'rgba(0,0,0,0.3)', borderRadius: '10px', padding: '4px', border: '1px solid var(--card-border)' }}>
               <button type="button" onClick={() => setSettingsTab('company')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, background: settingsTab === 'company' ? 'var(--primary-color)' : 'transparent', color: settingsTab === 'company' ? 'white' : 'var(--text-secondary)', transition: 'var(--transition)' }}>회사 기본 정보</button>
               <button type="button" onClick={() => setSettingsTab('employee')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, background: settingsTab === 'employee' ? 'var(--primary-color)' : 'transparent', color: settingsTab === 'employee' ? 'white' : 'var(--text-secondary)', transition: 'var(--transition)' }}>직원 정보 설정</button>
+              <button type="button" onClick={() => setSettingsTab('approval')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, background: settingsTab === 'approval' ? 'var(--primary-color)' : 'transparent', color: settingsTab === 'approval' ? 'white' : 'var(--text-secondary)', transition: 'var(--transition)' }}>결재란</button>
+              <button type="button" onClick={() => setSettingsTab('seal')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, background: settingsTab === 'seal' ? 'var(--primary-color)' : 'transparent', color: settingsTab === 'seal' ? 'white' : 'var(--text-secondary)', transition: 'var(--transition)' }}>직인 관리</button>
             </div>
 
             {/* 회사 기본 정보 탭 */}
@@ -248,8 +253,174 @@ function AppLayout({ children }) {
                   * 여기에 등록된 항목들만 임직원 등록/수정 시 드롭다운 선택지로 제공됩니다.
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button type="button" onClick={() => setShowSettings(false)} className="btn btn-outline" style={{ flex: 1 }}>취소</button>
+                  <button type="button" onClick={() => setShowSettings(false)} className="btn btn-outline" style={{ flex: 1 }}>닫기</button>
                   <button type="button" onClick={handleSaveCategories} className="btn btn-primary" style={{ flex: 1 }}>설정 저장</button>
+                </div>
+              </div>
+            )}
+
+            {/* 결재란 설정 탭 */}
+            {settingsTab === 'approval' && (
+              <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'rgba(0,0,0,0.2)', padding: '20px', borderRadius: '12px', border: '1px solid var(--card-border)' }}>
+                  <h4 style={{ margin: 0, fontSize: '15px', color: 'var(--primary-color)' }}>결재라인 관리</h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    추후 각종 증명서, 기안서 및 휴가 신청서에 반영될 기본 결재라인(직급)을 설정합니다.
+                  </p>
+                  
+                  <CategoryManager 
+                    label="결재 직급" 
+                    items={editingCategories.approval_lines || []} 
+                    onAdd={v => handleCategoryAdd('approval_lines', v)} 
+                    onRemove={v => handleCategoryRemove('approval_lines', v)} 
+                    onReorder={v => handleCategoryReorder('approval_lines', v)} 
+                  />
+                  
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                    * 원하는 직급을 입력하고 추가하거나, 기존 직급의 X를 눌러 뺄 수 있습니다.
+                    <br />* 위아래로 드래그(Drag)하여 결재 순서를 변경할 수도 있습니다.
+                  </div>
+
+                  {/* 미리보기 섹션 */}
+                  <div style={{ marginTop: '16px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h5 style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--primary-color)', fontWeight: '600' }}>실제 결재란 미리보기 (문서 출력 시 형태)</h5>
+                    <div style={{ 
+                      overflowX: 'auto', 
+                      paddingBottom: '12px', 
+                      display: 'flex', 
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: 'rgba(255,255,255,0.2) transparent'
+                    }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        border: '1px solid #444', 
+                        background: '#f8f9fa', 
+                        borderRadius: '2px',
+                        marginLeft: 'auto', // 내용이 적을 때는 오른쪽 정렬, 많을 때는 왼쪽부터 스크롤
+                        flexShrink: 0
+                      }}>
+                        <div style={{ 
+                          width: '30px', 
+                          borderRight: '1px solid #444', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          fontSize: '11px',
+                          color: '#333',
+                          padding: '4px',
+                          writingMode: 'vertical-rl',
+                          background: '#e9ecef',
+                          fontWeight: 'bold',
+                          flexShrink: 0
+                        }}>
+                          결재
+                        </div>
+                        {(editingCategories.approval_lines || []).map((pos, idx) => (
+                          <div key={idx} style={{ 
+                            width: (editingCategories.approval_lines?.length > 7) ? '55px' : '65px', 
+                            borderRight: idx === (editingCategories.approval_lines?.length - 1) ? 'none' : '1px solid #444',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            flexShrink: 0
+                          }}>
+                            <div style={{ 
+                              height: '24px', 
+                              borderBottom: '1px solid #444', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              fontSize: '11px',
+                              color: '#333',
+                              background: '#dee2e6',
+                              fontWeight: '600'
+                            }}>
+                              {pos}
+                            </div>
+                            <div style={{ height: '45px', background: 'white' }}></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.4)', textAlign: 'right' }}>
+                      * 출력물(명세서, 증명서 등) 우측 상단에 위와 같은 형태로 표시됩니다.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
+                  <button type="button" onClick={() => setShowSettings(false)} className="btn btn-outline" style={{ flex: 1 }}>닫기</button>
+                  <button type="button" onClick={handleSaveCategories} className="btn btn-primary" style={{ flex: 1 }}>설정 저장</button>
+                </div>
+              </div>
+            )}
+
+            {/* 직인 관리 탭 */}
+            {settingsTab === 'seal' && (
+              <div>
+                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--card-border)', textAlign: 'center' }}>
+                  <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: 'var(--primary-color)', textAlign: 'left' }}>기업 직인(인감) 등록</h4>
+                  
+                  <div style={{ 
+                    width: '120px', 
+                    height: '120px', 
+                    margin: '0 auto 20px', 
+                    border: '2px dashed rgba(255,255,255,0.1)', 
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(255,255,255,0.02)',
+                    overflow: 'hidden',
+                    position: 'relative'
+                  }}>
+                    {editingCompany.seal_url ? (
+                      <>
+                        <img src={editingCompany.seal_url} alt="직인" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                        <button 
+                          onClick={() => setEditingCompany({ ...editingCompany, seal_url: null })}
+                          style={{ position: 'absolute', top: '5px', right: '5px', background: 'rgba(239, 68, 68, 0.8)', border: 'none', borderRadius: '4px', color: 'white', padding: '4px', cursor: 'pointer' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <div style={{ color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                        <Image size={32} opacity={0.3} />
+                        <span style={{ fontSize: '12px' }}>이미지 없음</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <label className="btn btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <Upload size={16} /> 이미지 업로드
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        style={{ display: 'none' }} 
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setEditingCompany({ ...editingCompany, seal_url: reader.result });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px', textAlign: 'left' }}>
+                    * 배경이 투명한 PNG 파일을 권장합니다. (가로세로 비율 1:1 권장)
+                    <br />* 등록된 직인은 재직증명서, 경력증명서, 퇴직금 내역서 등의 하단 발행인 란에 자동으로 표시됩니다.
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
+                  <button type="button" onClick={() => setShowSettings(false)} className="btn btn-outline" style={{ flex: 1 }}>취소</button>
+                  <button type="submit" onClick={handleSaveCompany} className="btn btn-primary" style={{ flex: 1 }}>설정 저장</button>
                 </div>
               </div>
             )}
@@ -284,6 +455,7 @@ function MainRouter() {
           <Route path="/certificates" element={<CertificateIssue />} />
           <Route path="/leave" element={<LeaveManagement />} />
           <Route path="/severance" element={<SeveranceManagement />} />
+          <Route path="/year-end-tax" element={<YearEndTaxManagement />} />
           <Route path="/withholding-ledger" element={<WithholdingTaxLedger />} />
           <Route path="/withholding-receipt" element={<WithholdingTaxReceipt />} />
         </Routes>

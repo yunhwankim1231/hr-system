@@ -459,3 +459,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       padding-bottom: 30mm !important; 
   }
 }
+
+.clickable-name {
+  cursor: pointer;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.clickable-name:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}

@@ -197,6 +197,7 @@ export default function LeaveManagement() {
           <table style={tableStyle}>
             <thead>
               <tr>
+                <th style={{ width: '60px', textAlign: 'center', padding: '20px 12px', whiteSpace: 'nowrap' }}>순번</th>
                 <th style={{ width: '60px', textAlign: 'center', padding: '20px 24px' }}><input type="checkbox" checked={selectedIds.length === filteredEmployees.length && filteredEmployees.length > 0} onChange={(e) => setSelectedIds(e.target.checked ? filteredEmployees.map(emp => emp.id) : [])} /></th>
                 <th style={{ textAlign: 'center', padding: '20px 24px' }}>직원 정보</th>
                 <th style={{ textAlign: 'center', padding: '20px 24px' }}>입사일</th>
@@ -209,7 +210,7 @@ export default function LeaveManagement() {
               </tr>
             </thead>
             <tbody>
-              {filteredEmployees.map(emp => {
+              {filteredEmployees.map((emp, index) => {
                 const workHours = Number(emp.work_hours || 8);
                 const { totalLeave, details } = getLeaveDetails(emp.join_date, baseDate, workHours);
                 const empRecords = groupedRecords[emp.id] || [];
@@ -235,6 +236,9 @@ export default function LeaveManagement() {
                       transition: 'background 0.2s ease'
                     }}
                   >
+                    <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', padding: '18px 12px' }}>
+                      {index + 1}
+                    </td>
                     <td style={{ textAlign: 'center', padding: '18px 24px' }}><input type="checkbox" checked={selectedIds.includes(emp.id)} onChange={(e) => setSelectedIds(e.target.checked ? [...selectedIds, emp.id] : selectedIds.filter(id => id !== emp.id))} /></td>
                     <td style={{ textAlign: 'center', padding: '18px 24px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

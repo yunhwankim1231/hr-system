@@ -146,6 +146,7 @@ export default function DailyWorkerManagement() {
         <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black' }}>
           <thead>
             <tr style={{ background: '#eee' }}>
+              <th style={{ ...printTh, width: '40px' }}>순번</th>
               <th style={printTh}>성명</th>
               <th style={printTh}>{activeTab === 'attendance' ? '연락처' : '근무일수'}</th>
               <th style={printTh}>{activeTab === 'attendance' ? '근무시간' : '총시간'}</th>
@@ -162,6 +163,7 @@ export default function DailyWorkerManagement() {
                 const tax = calculateDailyTax(item.wage);
                 return (
                   <tr key={item.id}>
+                    <td style={printTd}>{idx + 1}</td>
                     <td style={printTd}>{worker?.name}</td>
                     <td style={printTd}>{worker?.phone}</td>
                     <td style={printTd}>{item.hours}h</td>
@@ -174,6 +176,7 @@ export default function DailyWorkerManagement() {
               } else {
                 return (
                   <tr key={idx}>
+                    <td style={printTd}>{idx + 1}</td>
                     <td style={printTd}>{item.name}</td>
                     <td style={printTd}>{item.days}일</td>
                     <td style={printTd}>{item.hours}h</td>
@@ -222,15 +225,16 @@ export default function DailyWorkerManagement() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="glass-card" style={{ padding: '0', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr style={{ background: 'rgba(0,0,0,0.2)' }}><th style={thStyle}>이름</th><th style={thStyle}>시간</th><th style={thStyle}>일당</th><th style={thStyle}>세금</th><th style={thStyle}>실지급액</th><th style={thStyle}>보험</th><th style={{ ...thStyle, textAlign: 'right' }}>관리</th></tr></thead>
+                  <thead><tr style={{ background: 'rgba(0,0,0,0.2)' }}><th style={{ ...thStyle, width: '60px', textAlign: 'center', whiteSpace: 'nowrap' }}>순번</th><th style={thStyle}>이름</th><th style={thStyle}>시간</th><th style={thStyle}>일당</th><th style={thStyle}>세금</th><th style={thStyle}>실지급액</th><th style={thStyle}>보험</th><th style={{ ...thStyle, textAlign: 'right' }}>관리</th></tr></thead>
                   <tbody>
-                    {todayLogs.map(log => {
+                    {todayLogs.map((log, index) => {
                       const worker = dailyWorkers.find(w => w.id === log.worker_id);
                       const tax = calculateDailyTax(log.wage);
                       const stats = getMonthlyStats(log.worker_id);
                       const isTarget = stats.days >= 8 || stats.hours >= 60;
                       return (
                         <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>{index + 1}</td>
                           <td style={tdStyle}><strong>{worker?.name}</strong></td>
                           <td style={tdStyle}>
                             <input

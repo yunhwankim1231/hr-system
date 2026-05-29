@@ -10,7 +10,6 @@ export default function CertificateIssue() {
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [position, setPosition] = useState('');
   const [role, setRole] = useState('');
-  const [customSeal, setCustomSeal] = useState(localStorage.getItem('customSeal') || '');
   const [currentCertNo, setCurrentCertNo] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [searchQuery, setSearchQuery] = useState(''); // 직원 검색어 상태 추가
@@ -101,9 +100,7 @@ export default function CertificateIssue() {
       <div className="no-print">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Stamp size={24} /> 재직/경력 증명서 발급
-            </h2>
+            <h2 style={{ fontSize: '28px', fontWeight: '800' }} className="text-gradient">재직/경력 증명서 발급</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
               재직증명서 및 경력증명서를 자동 생성하고 인쇄합니다. 회사명은 <strong>{company.name}</strong>으로 출력됩니다.
             </p>
@@ -217,58 +214,6 @@ export default function CertificateIssue() {
               </div>
             </div>
 
-            {/* 직인 업로드 */}
-            <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <label style={labelStyle}>회사 직인 업로드 (배경 없는 PNG 권장)</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      // [방어 로직 1] 파일 용량 제한 (2MB)
-                      const maxSize = 2 * 1024 * 1024;
-                      if (file.size > maxSize) {
-                        alert("직인 이미지는 2MB 이하만 업로드 가능합니다.");
-                        e.target.value = ''; // input 초기화
-                        return;
-                      }
-
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        const base64String = reader.result;
-                        setCustomSeal(base64String);
-                        
-                        // [방어 로직 2] localStorage 용량 초과 대응
-                        try {
-                          localStorage.setItem('customSeal', base64String);
-                        } catch (error) {
-                          console.error("LocalStorage Save Error:", error);
-                          alert("이미지 용량이 너무 커서 브라우저에 저장할 수 없습니다. (용량이 작은 이미지를 사용해 주세요)");
-                        }
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                  style={{ fontSize: '12px' }}
-                />
-                {customSeal && (
-                  <button 
-                    onClick={() => { setCustomSeal(''); localStorage.removeItem('customSeal'); }}
-                    style={{ fontSize: '12px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    직인 삭제
-                  </button>
-                )}
-              </div>
-              {customSeal && (
-                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>현재 등록된 직인:</span>
-                  <img src={customSeal} alt="직인 미리보기" style={{ width: '40px', height: '40px', objectFit: 'contain', border: '1px solid #333' }} />
-                </div>
-              )}
-            </div>
 
             <button className="btn btn-primary" onClick={handleGenerate} style={{ width: '100%', padding: '14px', fontSize: '16px' }}>
               <FileText size={18} style={{ marginRight: '8px' }} />
@@ -320,7 +265,7 @@ export default function CertificateIssue() {
           }} onClick={() => setShowPreview(false)}>
             <div onClick={e => e.stopPropagation()} style={{ width: '700px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', background: 'white', borderRadius: '12px', padding: '0' }}>
               <div style={{ padding: '40px', color: '#000' }}>
-                {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal, currentCertNo)}
+                {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, currentCertNo)}
               </div>
               <div style={{ padding: '16px 40px 24px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button onClick={() => setShowPreview(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: '#333', cursor: 'pointer' }}>닫기</button>
@@ -336,7 +281,7 @@ export default function CertificateIssue() {
       {/* ========== 인쇄 전용 증명서 ========== */}
       {selectedEmp && showPreview && (
         <div className="print-only" style={{ padding: '40px' }}>
-          {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal, currentCertNo)}
+          {renderCertificate(selectedEmp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, currentCertNo)}
         </div>
       )}
     </div>
@@ -344,7 +289,7 @@ export default function CertificateIssue() {
 }
 
 /* ===== 증명서 본문 렌더링 (화면 미리보기 + 인쇄 공용) ===== */
-function renderCertificate(emp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, customSeal, certNo) {
+function renderCertificate(emp, certType, purpose, issueDate, company, formatDate, getWorkPeriod, certTitle, certTitleEn, position, role, certNo) {
   const today = new Date(issueDate);
   const issueDateFormatted = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
 
@@ -421,8 +366,8 @@ function renderCertificate(emp, certType, purpose, issueDate, company, formatDat
         </div>
         <div style={{ fontSize: '16px', marginBottom: '20px' }}>대 표 이 사 (인)</div>
 
-        {/* 직인 표시 (커스텀 업로드 또는 기본 가상 직인) */}
-        {customSeal ? (
+        {/* 직인 표시 (시스템 설정 직인 또는 기본 가상 직인) */}
+        {company.seal_url ? (
           <div style={{
             position: 'absolute',
             top: '50%',
@@ -433,7 +378,7 @@ function renderCertificate(emp, certType, purpose, issueDate, company, formatDat
             zIndex: 10,
             pointerEvents: 'none'
           }}>
-            <img src={customSeal} alt="직인" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img src={company.seal_url} alt="직인" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
         ) : (
           <div style={{
@@ -494,12 +439,14 @@ const cellLabelStyle = {
   fontWeight: 'bold',
   width: '15%',
   textAlign: 'center',
-  color: '#000'
+  color: '#000',
+  whiteSpace: 'nowrap'
 };
 
 const cellValueStyle = {
   border: '1px solid #333',
   padding: '10px 16px',
   width: '35%',
-  color: '#000'
+  color: '#000',
+  whiteSpace: 'nowrap'
 };

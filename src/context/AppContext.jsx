@@ -88,6 +88,7 @@ export function AppProvider({ children }) {
         const { data: dbSettings } = await supabase.from('system_settings').select('value').eq('key', 'insurance_rates').single();
         const { data: dbCalendarNotes } = await supabase.from('system_settings').select('value').eq('key', 'calendar_notes').single();
         const { data: dbPayrollArchives } = await supabase.from('system_settings').select('value').eq('key', 'payroll_archives').single();
+        const { data: dbNewArchives, error: dbNewError } = await supabase.from('payroll_archives').select('*').order('year', { ascending: false }).order('month', { ascending: false });
         const { data: dbCompanyInfo } = await supabase.from('system_settings').select('value').eq('key', 'company_info').single();
         const { data: dbEmployeeCategories } = await supabase.from('system_settings').select('value').eq('key', 'employee_categories').single();
         const { data: dbTaxRates } = await supabase.from('tax_rate_table').select('*').order('min_amount', { ascending: true });
@@ -131,17 +132,66 @@ export function AppProvider({ children }) {
           }
           if (dbTaxRates) setTaxRates(dbTaxRates);
 
-          if (dbPayrollArchives) {
-            setPayrollArchives(dbPayrollArchives.value);
+          // 급여 아카이브 로드 및 자동 마이그레이션 로직
+          let loadedArchives = [];
+          if (!dbNewError && dbNewArchives && dbNewArchives.length > 0) {
+            // 1. 신규 테이블에서 정상적으로 불러온 경우
+            loadedArchives = dbNewArchives.map(a => ({
+              year: a.year,
+              month: a.month,
+              data: a.data,
+              finalizedAt: a.finalized_at
+            }));
+            setPayrollArchives(loadedArchives);
           } else {
-            // DB에 없으면 로컬 스토리지 마이그레이션 체크
-            const localArchives = JSON.parse(localStorage.getItem('payrollArchives') || '[]');
-            if (localArchives.length > 0) {
-              console.log('급여 내역 마이그레이션 시작...');
-              setPayrollArchives(localArchives);
-              await supabase.from('system_settings').upsert({ key: 'payroll_archives', value: localArchives });
+            // 2. 신규 테이블이 없거나 비어 있으면 기존 system_settings 로드 시도
+            if (dbPayrollArchives && dbPayrollArchives.value) {
+              loadedArchives = dbPayrollArchives.value;
+              setPayrollArchives(loadedArchives);
+              
+              // 신규 테이블이 생성되어 있고(에러 없음) 비어 있는 경우, 자동 마이그레이션 실행
+              if (!dbNewError && loadedArchives.length > 0) {
+                console.log('기존 system_settings 급여 데이터를 신규 payroll_archives 테이블로 마이그레이션 중...');
+                const migrationRows = loadedArchives.map(a => ({
+                  id: `${a.year}-${String(a.month).padStart(2, '0')}`,
+                  year: a.year,
+                  month: a.month,
+                  data: a.data,
+                  finalized_at: a.finalizedAt || new Date().toISOString()
+                }));
+                supabase.from('payroll_archives').upsert(migrationRows).then(({ error: migError }) => {
+                  if (migError) {
+                    console.error('자동 마이그레이션 실패:', migError.message);
+                  } else {
+                    console.log('급여 데이터 마이그레이션 성공!');
+                  }
+                });
+              }
+            } else {
+              // 3. DB 전체에 마감본이 없는 경우 로컬 스토리지 마이그레이션 체크
+              const localArchives = JSON.parse(localStorage.getItem('payrollArchives') || '[]');
+              if (localArchives.length > 0) {
+                console.log('로컬 스토리지에서 급여 내역 마이그레이션 시작...');
+                loadedArchives = localArchives;
+                setPayrollArchives(loadedArchives);
+                
+                // 만약 신규 테이블이 사용 가능하면 신규 테이블에 저장하고, 아니면 폴백 키에 저장
+                if (!dbNewError) {
+                  const migrationRows = localArchives.map(a => ({
+                    id: `${a.year}-${String(a.month).padStart(2, '0')}`,
+                    year: a.year,
+                    month: a.month,
+                    data: a.data,
+                    finalized_at: a.finalizedAt || new Date().toISOString()
+                  }));
+                  supabase.from('payroll_archives').upsert(migrationRows);
+                } else {
+                  supabase.from('system_settings').upsert({ key: 'payroll_archives', value: localArchives });
+                }
+              }
             }
           }
+
 
           // 로컬에만 데이터가 있고 DB에 없는 경우 마이그레이션 체크
           if ((!dbCerts || dbCerts.length === 0) && localStorage.getItem('certificateHistory')) {
@@ -386,18 +436,52 @@ export function AppProvider({ children }) {
     const newArchives = [...filtered, { year, month, data: snapshotData, finalizedAt: new Date().toISOString() }];
     
     setPayrollArchives(newArchives);
-    const { error } = await supabase.from('system_settings').upsert({ key: 'payroll_archives', value: newArchives });
-    if (error) {
-      console.error('클라우드 저장 실패:', error.message);
-      // 클라우드 실패해도 로컬에는 남겨둠 (백업용)
-      localStorage.setItem('payrollArchives', JSON.stringify(newArchives));
+    
+    // 1. 신규 개별 테이블(payroll_archives)에 개별 행으로 저장 시도
+    const id = `${year}-${String(month).padStart(2, '0')}`;
+    const { error: tableError } = await supabase
+      .from('payroll_archives')
+      .upsert({
+        id,
+        year,
+        month,
+        data: snapshotData,
+        finalized_at: new Date().toISOString()
+      });
+
+    if (tableError) {
+      console.warn('신규 아카이브 테이블 저장 실패, system_settings 폴백 사용:', tableError.message);
+      // 기존 system_settings 폴백 백업
+      const { error: fallbackError } = await supabase
+        .from('system_settings')
+        .upsert({ key: 'payroll_archives', value: newArchives });
+        
+      if (fallbackError) {
+        console.error('폴백 백업 저장 실패:', fallbackError.message);
+      }
     }
+    
+    // 로컬 스토리지에 최종 상태 백업
+    localStorage.setItem('payrollArchives', JSON.stringify(newArchives));
   };
 
   const removeArchive = async (year, month) => {
     const newArchives = payrollArchives.filter(p => !(p.year === year && p.month === month));
     setPayrollArchives(newArchives);
-    await supabase.from('system_settings').upsert({ key: 'payroll_archives', value: newArchives });
+    
+    // 1. 신규 개별 테이블(payroll_archives)에서 레코드 삭제 시도
+    const id = `${year}-${String(month).padStart(2, '0')}`;
+    const { error: tableError } = await supabase
+      .from('payroll_archives')
+      .delete()
+      .eq('id', id);
+
+    if (tableError) {
+      console.warn('신규 아카이브 테이블 삭제 실패, system_settings 폴백 사용:', tableError.message);
+      // 기존 system_settings 폴백 백업
+      await supabase.from('system_settings').upsert({ key: 'payroll_archives', value: newArchives });
+    }
+    
     localStorage.setItem('payrollArchives', JSON.stringify(newArchives));
   };
 

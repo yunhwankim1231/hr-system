@@ -188,3 +188,132 @@ CREATE TRIGGER employee_audit_trigger
 AFTER INSERT OR UPDATE OR DELETE ON employees
 FOR EACH ROW EXECUTE FUNCTION log_employee_changes();
 
+-- 5. 급여 명세서 (payslips)
+CREATE TABLE IF NOT EXISTS payslips (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id TEXT REFERENCES employees(id) ON DELETE CASCADE NOT NULL,
+    payment_month VARCHAR(7) NOT NULL, -- YYYY-MM
+    
+    -- 과세 항목
+    base_salary BIGINT DEFAULT 0,
+    extra_pays JSONB DEFAULT '[]'::jsonb,
+    total_taxable BIGINT DEFAULT 0,
+    
+    -- 비과세 항목
+    total_non_taxable BIGINT DEFAULT 0,
+    
+    -- 공제 항목
+    national_pension BIGINT DEFAULT 0,
+    health_insurance BIGINT DEFAULT 0,
+    long_term_care BIGINT DEFAULT 0,
+    employment_insurance BIGINT DEFAULT 0,
+    income_tax BIGINT DEFAULT 0,
+    resident_tax BIGINT DEFAULT 0,
+    
+    -- 연말정산 관련 추가 항목
+    year_end_tax_income BIGINT DEFAULT 0,    -- 연말정산 소득세 (환급 - / 추가 +)
+    year_end_tax_resident BIGINT DEFAULT 0,  -- 연말정산 지방소득세
+    
+    total_deductions BIGINT DEFAULT 0,
+    net_pay BIGINT DEFAULT 0,
+    
+    status VARCHAR(20) DEFAULT 'Draft', -- Draft, Finalized
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    UNIQUE(employee_id, payment_month)
+);
+
+-- 6. 연말정산 관리 (year_end_tax_settlements)
+CREATE TABLE IF NOT EXISTS year_end_tax_settlements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id TEXT REFERENCES employees(id) ON DELETE CASCADE NOT NULL,
+    target_year INTEGER NOT NULL, -- 귀속 연도 (예: 2025)
+    
+    -- 진행 상태 (대기, 진행중, 완료)
+    status VARCHAR(20) DEFAULT '대기' CHECK(status IN ('대기', '진행중', '완료')),
+    
+    -- [1] 급여 및 기납부세액 (Payslips 테이블에서 연동하여 집계)
+    total_pay BIGINT DEFAULT 0,         -- 총급여액 (비과세 제외)
+    pre_paid_tax BIGINT DEFAULT 0,      -- 기납부세액 합계 (소득세+지방소득세)
+    
+    -- [2] 공제 항목 상세 (세부 항목이 너무 많으므로 JSONB로 구조화하여 저장)
+    dependents_json JSONB DEFAULT '[]'::jsonb,           -- 부양가족 인적공제 상세 배열
+    income_deductions_json JSONB DEFAULT '{}'::jsonb,    -- 소득공제 (건강/고용보험, 주택자금, 신용카드 등)
+    tax_exemptions_json JSONB DEFAULT '{}'::jsonb,       -- 세액공제/감면 (의료비, 교육비, 기부금, 중소기업감면 등)
+    
+    -- [3] 최종 세액 계산 결과
+    calculated_tax BIGINT DEFAULT 0,    -- 산출세액
+    final_tax BIGINT DEFAULT 0,         -- 결정세액
+    refund_or_pay BIGINT DEFAULT 0,     -- 차감징수세액 (-면 환급, +면 징수)
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- 한 직원은 특정 귀속 연도에 단 하나의 연말정산 기록만 가짐
+    UNIQUE(employee_id, target_year)
+);
+
+-- =========================================================================
+-- [보안 및 데이터 안정성 강화 개선안]
+-- =========================================================================
+
+-- 1. 급여 아카이브 전용 개별 테이블 생성
+CREATE TABLE IF NOT EXISTS payroll_archives (
+    id TEXT PRIMARY KEY, -- 'YYYY-MM' 형식의 기본 키
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    data JSONB NOT NULL,
+    finalized_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 2. 전체 테이블 RLS 활성화 및 로그인한 사용자(authenticated) 전용 정책 부여
+ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON employees;
+CREATE POLICY "authenticated_only" ON employees FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE daily_workers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON daily_workers;
+CREATE POLICY "authenticated_only" ON daily_workers FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE daily_work_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON daily_work_logs;
+CREATE POLICY "authenticated_only" ON daily_work_logs FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE leave_management ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON leave_management;
+CREATE POLICY "authenticated_only" ON leave_management FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE certificates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON certificates;
+CREATE POLICY "authenticated_only" ON certificates FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON system_settings;
+CREATE POLICY "authenticated_only" ON system_settings FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE tax_rate_table ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON tax_rate_table;
+CREATE POLICY "authenticated_only" ON tax_rate_table FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE retirement_tax_calculations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON retirement_tax_calculations;
+CREATE POLICY "authenticated_only" ON retirement_tax_calculations FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON audit_logs;
+CREATE POLICY "authenticated_only" ON audit_logs FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE payslips ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON payslips;
+CREATE POLICY "authenticated_only" ON payslips FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE year_end_tax_settlements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON year_end_tax_settlements;
+CREATE POLICY "authenticated_only" ON year_end_tax_settlements FOR ALL USING (auth.role() = 'authenticated');
+
+ALTER TABLE payroll_archives ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_only" ON payroll_archives;
+CREATE POLICY "authenticated_only" ON payroll_archives FOR ALL USING (auth.role() = 'authenticated');
+
+

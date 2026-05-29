@@ -671,6 +671,7 @@ export default function EmployeeManagement() {
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '900px' }}>
           <thead style={{ background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--card-border)' }}>
             <tr>
+              <th style={{ ...thStyle, width: '60px', textAlign: 'center', padding: '16px 12px', whiteSpace: 'nowrap' }}>순번</th>
               <th style={thStyle}>이름</th>
               <th style={thStyle}>연락처</th>
               <th style={thStyle}>고용형태</th>
@@ -682,11 +683,14 @@ export default function EmployeeManagement() {
             </tr>
           </thead>
           <tbody>
-            {filteredEmployees.map(emp => (
+            {filteredEmployees.map((emp, index) => (
               <tr key={emp.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: emp.resignation_date ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
+                <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                  {index + 1}
+                </td>
                 <td style={tdStyle}>
                   <strong 
-                    style={{ cursor: 'pointer', color: '#60a5fa', textDecoration: 'underline', transition: 'color 0.2s' }} 
+                    className="clickable-name"
                     onClick={() => setDetailEmp(emp)}
                     title="클릭하여 상세 정보 보기"
                   >

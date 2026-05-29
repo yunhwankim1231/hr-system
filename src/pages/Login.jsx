@@ -8,12 +8,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 회원가입 모달 상태
-  const [showSignupModal, setShowSignupModal] = useState(false);
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupError, setSignupError] = useState(null);
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -26,33 +20,6 @@ export default function Login() {
 
     if (error) {
       setError('이메일 또는 비밀번호가 올바르지 않습니다.');
-    }
-    
-    setLoading(false);
-  };
-
-  const handleSignUp = async (e) => {
-    e.preventDefault();
-    if (!signupEmail || !signupPassword) {
-      setSignupError('이메일과 비밀번호를 모두 입력해주세요.');
-      return;
-    }
-    
-    setLoading(true);
-    setSignupError(null);
-
-    const { error } = await supabase.auth.signUp({
-      email: signupEmail,
-      password: signupPassword,
-    });
-
-    if (error) {
-      setSignupError(error.message);
-    } else {
-      alert(`회원가입이 완료되었습니다!\n\n입력하신 이메일(${signupEmail})로 이동하여 확인(Confirmation) 메일을 승인(Click)해 주세요.`);
-      setShowSignupModal(false);
-      setSignupEmail('');
-      setSignupPassword('');
     }
     
     setLoading(false);
@@ -106,29 +73,15 @@ export default function Login() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-            <button 
-              type="button" 
-              disabled={loading} 
-              style={signupButtonStyle} 
-              onClick={() => {
-                setShowSignupModal(true);
-                setSignupError(null);
-                setSignupEmail('');
-                setSignupPassword('');
-              }}
-            >
-              회원가입
-            </button>
-            <button type="submit" disabled={loading} style={{ ...buttonStyle, flex: 2, marginTop: 0 }}>
-              {loading ? '처리 중...' : (
-                <>
-                  <LogIn size={18} />
-                  로그인
-                </>
-              )}
-            </button>
-          </div>
+          <button type="submit" disabled={loading} style={{ ...buttonStyle, marginTop: '10px' }}>
+            {loading ? '처리 중...' : (
+              <>
+                <LogIn size={18} />
+                로그인
+              </>
+            )}
+          </button>
+
         </form>
 
         <div style={footerStyle}>
@@ -137,67 +90,7 @@ export default function Login() {
         </div>
       </div>
 
-      {/* 회원가입 모달 */}
-      {showSignupModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{ ...cardStyle, width: '400px', animation: 'fadeIn 0.2s ease', position: 'relative' }}>
-            <button 
-              onClick={() => setShowSignupModal(false)}
-              style={{ position: 'absolute', top: '24px', right: '24px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
-            >
-              ✕
-            </button>
-            <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '24px', color: 'white' }}>신규 관리자 회원가입</h2>
-            
-            {signupError && (
-              <div style={errorAlertStyle}>
-                {signupError}
-              </div>
-            )}
 
-            <form onSubmit={handleSignUp} style={formStyle}>
-              <div style={inputGroupStyle}>
-                <label style={labelStyle}>사용할 이메일</label>
-                <div style={inputWrapperStyle}>
-                  <Mail size={18} style={inputIconStyle} />
-                  <input
-                    type="email"
-                    required
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    style={inputStyle}
-                    placeholder="new@example.com"
-                  />
-                </div>
-              </div>
-
-              <div style={inputGroupStyle}>
-                <label style={labelStyle}>비밀번호 (6자리 이상)</label>
-                <div style={inputWrapperStyle}>
-                  <Lock size={18} style={inputIconStyle} />
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    style={inputStyle}
-                    placeholder="••••••••"
-                  />
-                </div>
-              </div>
-
-              <button type="submit" disabled={loading} style={{ ...buttonStyle, marginTop: '20px' }}>
-                {loading ? '가입 처리 중...' : '회원가입 신청'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

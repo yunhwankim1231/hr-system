@@ -511,6 +511,7 @@ export default function PayrollManagement() {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead style={{ background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--card-border)' }}>
                 <tr>
+                  <th style={{ ...thStyle, width: '60px', textAlign: 'center', padding: '16px 12px', whiteSpace: 'nowrap' }}>순번</th>
                   <th style={{ ...thStyle, padding: '16px 12px' }}>이름</th>
                   <th style={{ ...thStyle, textAlign: 'right', padding: '16px 12px' }}>지급 총액</th>
                   <th style={{ ...thStyle, textAlign: 'right', padding: '16px 12px' }}>공제 총액</th>
@@ -519,7 +520,7 @@ export default function PayrollManagement() {
                 </tr>
               </thead>
               <tbody>
-                {filteredCurrentData.map((data) => (
+                {filteredCurrentData.map((data, index) => (
                   <tr
                     key={data.emp.id}
                     onClick={() => setSelectedEmpIdState(data.emp.id)}
@@ -530,6 +531,9 @@ export default function PayrollManagement() {
                       transition: 'background 0.2s'
                     }}
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', padding: '16px 12px' }}>
+                      {index + 1}
+                    </td>
                     <td style={{ ...tdStyle, padding: '16px 12px' }}>
                       <strong>{data.emp.name}</strong>
                       {data.emp.resignation_date && (
