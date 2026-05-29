@@ -1,0 +1,39 @@
+name: Monthly Database Backup
+
+on:
+  schedule:
+    # 매월 11일 00:00 KST (한국 시간)에 맞춰 자동 실행되도록 설정
+    # 한국 11일 00:00 = UTC 전날 10일 15:00
+    - cron: '0 15 10 * *'
+  workflow_dispatch: # GitHub Actions 웹 화면에서 언제든 관리자가 수동 실행 가능하도록 설정
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Run database backup script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/backup.js
+
+      - name: Commit and push automated backup file
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Backup"
+          git add backups/
+          # 변경되거나 새로운 백업 파일이 생겼을 때만 커밋 수행 (에러 방지)
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto Backup: $(date +'%Y-%m-%d')"
+          git push origin main

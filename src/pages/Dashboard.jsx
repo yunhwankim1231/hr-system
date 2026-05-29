@@ -101,6 +101,15 @@ export default function Dashboard() {
       }
     });
 
+    // 매월 11일 시스템 정기 백업일 알림 추가
+    if (today.getDate() === 11) {
+      notifications.unshift({
+        id: 'monthly-backup-day-alert',
+        text: '🔔 오늘은 매월 11일 시스템 정기 백업일입니다! 데이터 유실 리스크 예방을 위해 [데이터 백업/복원] 메뉴로 이동하여 최신 백업 파일을 PC에 다운로드해 보관해 주십시오.',
+        type: 'warning'
+      });
+    }
+
     const activeHeadcount = employees.filter(e => !e.resignation_date).length;
 
     return {

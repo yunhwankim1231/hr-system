@@ -267,7 +267,7 @@ export default function BackupCenter() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>백업 권장 주기</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--warning-color)' }}>매월 1회 필수 권장</span>
+                <span style={{ fontWeight: 'bold', color: 'var(--warning-color)' }}>매월 11일 정기 백업 (권장)</span>
               </div>
             </div>
           </div>
