@@ -338,7 +338,7 @@ export default function Dashboard() {
         ) : (
           <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {dashboardData.notifications.map(noti => (
-              <li key={noti.id} title={noti.reason} style={{ 
+              <li key={noti.id} className="notification-item" style={{ 
                 padding: '16px', 
                 background: 'rgba(255,255,255,0.03)', 
                 borderRadius: '8px',
@@ -349,6 +349,7 @@ export default function Dashboard() {
                 }`
               }}>
                 {noti.text}
+                <span className="tooltip">{noti.reason}</span>
               </li>
             ))}
           </ul>
