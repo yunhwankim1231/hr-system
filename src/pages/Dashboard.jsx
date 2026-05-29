@@ -76,19 +76,19 @@ export default function Dashboard() {
         if (emp.probation_end_date) {
           const pDate = new Date(emp.probation_end_date);
           if (pDate.getMonth() === today.getMonth() && pDate.getFullYear() === today.getFullYear()) {
-            notifications.push({ id: `p-${emp.id}`, text: `🎓 ${emp.name}님 수습 기간이 종료됩니다. (${emp.probation_end_date})`, type: 'warning' });
+            notifications.push({ id: `p-${emp.id}`, text: `🎓 ${emp.name}님 수습 기간이 종료됩니다. (${emp.probation_end_date})`, type: 'warning', reason: '수습 기간 종료 알림' });
           }
         }
         const jDate = new Date(emp.join_date);
         if (jDate.getMonth() === today.getMonth() && jDate.getFullYear() === today.getFullYear()) {
-          notifications.push({ id: `j-${emp.id}`, text: `👏 이번 달 신규 입사자: ${emp.name}님 (${emp.join_date})`, type: 'info' });
+          notifications.push({ id: `j-${emp.id}`, text: `👏 이번 달 신규 입사자: ${emp.name}님 (${emp.join_date})`, type: 'info', reason: '신규 입사자 알림' });
         }
       }
 
       if (emp.resignation_date) {
         const rDate = new Date(emp.resignation_date);
         if (rDate.getMonth() === today.getMonth() && rDate.getFullYear() === today.getFullYear()) {
-          notifications.push({ id: `r-${emp.id}`, text: `🏃 이번 달 퇴사 예정/완료: ${emp.name}님 (${emp.resignation_date})`, type: 'danger' });
+          notifications.push({ id: `r-${emp.id}`, text: `🏃 이번 달 퇴사 예정/완료: ${emp.name}님 (${emp.resignation_date})`, type: 'danger', reason: '퇴사 일정 알림' });
         }
       }
 
@@ -96,7 +96,7 @@ export default function Dashboard() {
         const bDate = new Date(emp.birth_date);
         const turned60ThisMonth = (today.getFullYear() - bDate.getFullYear() === 60) && (today.getMonth() === bDate.getMonth());
         if (turned60ThisMonth && !emp.continue_national_pension) {
-          notifications.push({ id: `np-${emp.id}`, text: `🛡️ 국민연금 공제 종료 안내: ${emp.name}님께서 이번 달 만 60세가 도달하여 공제가 면제됩니다.`, type: 'warning' });
+          notifications.push({ id: `np-${emp.id}`, text: `🛡️ 국민연금 공제 종료 안내: ${emp.name}님께서 이번 달 만 60세가 도달하여 공제가 면제됩니다.`, type: 'warning', reason: '60세 국민연금 공제 종료' });
         }
       }
     });
@@ -106,7 +106,8 @@ export default function Dashboard() {
       notifications.unshift({
         id: 'monthly-backup-day-alert',
         text: '🔔 오늘은 매월 11일 시스템 정기 백업일입니다! 데이터 유실 리스크 예방을 위해 [데이터 백업/복원] 메뉴로 이동하여 최신 백업 파일을 PC에 다운로드해 보관해 주십시오.',
-        type: 'warning'
+        type: 'warning',
+        reason: '월간 정기 백업 알림'
       });
     }
 
@@ -337,7 +338,7 @@ export default function Dashboard() {
         ) : (
           <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {dashboardData.notifications.map(noti => (
-              <li key={noti.id} style={{ 
+              <li key={noti.id} title={noti.reason} style={{ 
                 padding: '16px', 
                 background: 'rgba(255,255,255,0.03)', 
                 borderRadius: '8px',
